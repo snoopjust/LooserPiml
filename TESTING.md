@@ -137,9 +137,9 @@ Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
 | 8 | `ADDON_RESTRICTION_STATE_CHANGED` exists on Forever and fires Inactive (0) when restrictions end | `/lp selftest` APIs line (`RestrictionEvent=`), debug log | Event exists (2026-10-11). Firing on lift: still open |
 | 9 | `ENCOUNTER_START`/`ENCOUNTER_END` fire for 5-man bosses on Forever; `C_InstanceEncounter.IsEncounterInProgress` exists | Section 3.3, selftest APIs line | API exists (2026-10-11). Events in a real boss: still open |
 | 10 | `CHAT_MSG_ADDON` payloads are never secret, even while locked down. AceComm doesn't check, so this would show as AceComm Lua errors during bosses | BugSack during section 3.3 | |
-| 11 | `PLAYER_DEAD` fires once per death; not on login as a ghost | Section 2.4 | |
+| 11 | `PLAYER_DEAD` fires once per death; not on login as a ghost | Section 2.4 | **OK (2026-10-11)**: one message per death, "Again" variant on the second death |
 | 12 | Drowning: `MIRROR_TIMER_START` BREATH payload (value in ms, scale -1) is not secret; order of `MIRROR_TIMER_STOP` vs `PLAYER_DEAD`; `GetMirrorTimerProgress("BREATH")` at empty breath | Section 2.4 with debug on | |
-| 13 | `PLAYER_LEVEL_UP` level argument is a plain number | Section 2.4 | |
+| 13 | `PLAYER_LEVEL_UP` level argument is a plain number | Section 2.4 | **OK (2026-10-11)**: level-up banner with the correct level |
 | 14 | `GetInstanceInfo()` instanceType `party`/`raid` and a stable instanceID on Forever | Section 2.4 | |
 | 15 | `UnitName`/`UnitClass` of group members are not secret out of combat (class colors work) | Section 3.2 | |
 | 16 | Raid target icon textures and `GameFontNormalHuge` exist and look fine | Section 2.3 | **OK (2026-10-11)**: icon and banner render |

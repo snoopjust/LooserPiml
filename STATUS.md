@@ -65,6 +65,7 @@ First solo session on the Forever beta (2026-10-11):
 - Interface **16001** confirmed. Addon loads without Lua errors; `/lp` works.
 - Libraries load: CallbackHandler r8, AceComm r14, AceSerializer r5, LibDeflate r3. Encode/compress roundtrip OK (4 chunks).
 - `/lp selftest` APIs line: `InChatMessagingLockdown`, `C_InstanceEncounter`, `issecretvalue`, `GetMirrorTimerProgress` and `ADDON_RESTRICTION_STATE_CHANGED` all exist.
+- Real own events (solo): death, second death ("Again" variant) and level-up work. Banner and sound work. Not yet tested: drowning, dungeon enter/leave, corpse run, restriction behaviour in real boss fights, anything with a second player.
 - **Addon whisper to yourself does not work** (server: "No player named 'X' is currently playing"). The selftest's real-transport step therefore now uses the group channel and is skipped solo (info line, not a failure). Group delivery incl. the server echo is still to be verified with a friend.
 
 ## Open questions
