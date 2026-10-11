@@ -18,7 +18,7 @@ _Last updated: 2026-10-11 (initial scaffold, Core + Ticker MVP)_
 - **Tests**: 78 busted specs, all green, running the real addon + real libraries under Lua 5.1, including two clients talking to each other.
 - **Tooling**: `tools/fetch-libs.ps1`, `tools/link-addon.ps1` (junction created: `<WoW>\_classic_beta_\Interface\AddOns\LooserPiml` â†’ repo), `tools/setup-test-env.ps1`, `tools/run-tests.ps1`.
 - **Distribution**: `.pkgmeta` (libs as git externals, pinned), GitHub Actions `tests.yml` (push/PR) and `release.yml` (tag `v*` â†’ tests â†’ BigWigsMods/packager â†’ GitHub release + `release.json`).
-- **Docs**: README (friends' install via WowUp + manual), TESTING.md (solo + two-client checklists, all `TODO(verify in-game)` items), CHANGELOG.
+- **Docs**: README (friends' install via WowUp + manual), ARCHITECTURE.md (files, load order, end-to-end event diagram, restriction handling), CLAUDE.md (conventions), TESTING.md (solo + two-client checklists, all `TODO(verify in-game)` items), CHANGELOG.
 
 ## Safety rules
 

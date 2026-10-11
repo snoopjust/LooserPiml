@@ -35,6 +35,7 @@ ignore:
   - TESTING.md
   - STATUS.md
   - CLAUDE.md
+  - ARCHITECTURE.md
 
 manual-changelog:
   filename: CHANGELOG.md

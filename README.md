@@ -60,6 +60,10 @@ and as a line in your chat window (only you see it).
 
 ## Development (Windows)
 
+How the pieces fit together (file purposes, load order, an event traced end
+to end, restriction handling): [ARCHITECTURE.md](ARCHITECTURE.md).
+Conventions for working on the code: [CLAUDE.md](CLAUDE.md).
+
 The repository root is the addon folder.
 
 ```
