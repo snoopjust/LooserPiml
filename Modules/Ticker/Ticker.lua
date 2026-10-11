@@ -111,6 +111,8 @@ end
 -- /reload while dead), and counting twice would spoil the stats. So we only
 -- count again after PLAYER_ALIVE/PLAYER_UNGHOST. TODO(verify in-game).
 function Ticker:PLAYER_DEAD()
+	ns.Log:Debug("PLAYER_DEAD (already counted: %s, UnitIsDeadOrGhost: %s)",
+		tostring(self.dead), tostring(self:IsPlayerDeadOrGhost()))
 	if self.dead then
 		return -- already counted this death
 	end
@@ -124,12 +126,15 @@ end
 
 -- PLAYER_ALIVE fires on resurrection and also when releasing to a ghost.
 function Ticker:PLAYER_ALIVE()
-	if not self:IsPlayerDeadOrGhost() then
+	local stillDead = self:IsPlayerDeadOrGhost()
+	ns.Log:Debug("PLAYER_ALIVE (still dead or ghost: %s)", tostring(stillDead))
+	if not stillDead then
 		self.dead = false
 	end
 end
 
 function Ticker:PLAYER_UNGHOST()
+	ns.Log:Debug("PLAYER_UNGHOST")
 	self.dead = false
 end
 
