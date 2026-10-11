@@ -5,22 +5,28 @@ order, message flow or restriction handling change (see CLAUDE.md).
 
 ## The idea in one paragraph
 
-Every client watches only **its own** player (death, level up, dungeon). It
-shows the event locally right away, counts it, and broadcasts it as a hidden
-addon message to the group. Friends' clients receive it, check it, count it
-and show it. Nobody ever inspects other players, so no secret unit data is
+Every client watches only **its own** player. The **Ticker** announces
+what happens (death, level up, dungeon): shown locally right away, then
+broadcast as a hidden addon message; friends' clients check it and show it.
+The **Stats** module records much more of the own character's life (gold,
+loot, quests, duels, ...) in a local log, condenses it into totals and
+shares only those totals with friends, which feeds the **Leaderboard**
+window. Nobody ever inspects other players, so no secret unit data is
 needed. While the game blocks addon messages (boss encounters), outgoing
 messages wait in a queue and banners are held. Both come out after the
-fight.
+fight. Friends never need slash commands: the minimap button opens the
+window, and everything else is in Options › AddOns › LooserPiml.
 
 ```mermaid
 flowchart TB
     Ticker["Ticker module<br/>Ticker.lua · Stats.lua · Display.lua"]
+    Stats["Stats module<br/>log · collectors · model · sync · leaderboard tab"]
     Future["Inventory · Professions · Bets<br/>(planned)"]
-    Core["Core services<br/>Events · DB · Log · Roster<br/>Comm · Version · TestMode · Slash"]
-    Libs["AceComm-3.0 + ChatThrottleLib<br/>AceSerializer-3.0 · LibDeflate"]
-    API[("WoW client API<br/>game events · C_ChatInfo.SendAddonMessage · CHAT_MSG_ADDON")]
+    Core["Core services<br/>Events · DB · Log · Roster · PlayerEvents<br/>Comm · Version · TestMode · Slash · Options · Window"]
+    Libs["AceComm-3.0 + ChatThrottleLib · AceSerializer-3.0 · LibDeflate<br/>LibDataBroker · LibDBIcon"]
+    API[("WoW client API<br/>game events · C_ChatInfo.SendAddonMessage · CHAT_MSG_ADDON · Settings")]
     Ticker --> Core
+    Stats --> Core
     Future -.-> Core
     Core -->|"Comm only"| Libs
     Core --> API
@@ -28,8 +34,10 @@ flowchart TB
 ```
 
 Modules never call each other. They only use Core: game events via
-`ns.Events`, network via `ns.Comm`, storage via `ns.DB`. That keeps a module
-removable.
+`ns.Events` (including `LP_*` messages such as `LP_PLAYER_DEAD` from
+PlayerEvents), network via `ns.Comm`, storage via `ns.DB`, settings via
+`ns.Options`, window tabs and tooltip lines via `ns.Window`. That keeps a
+module removable.
 
 ## Files
 
@@ -105,13 +113,80 @@ sequenceDiagram
     participant M as Modules
     G->>G: run all .toc files (define + register only)
     G->>I: ADDON_LOADED "LooserPiml" (SavedVariables are loaded now)
-    I->>C: OnInitialize: DB creates or migrates LooserPimlDB, Log hooks blocked-action events, Comm registers prefix LPiml, Slash registers /lp
-    I->>M: OnInitialize: Ticker gets its storage, registers /lp stats
+    I->>C: OnInitialize: DB creates or migrates LooserPimlDB, Log hooks blocked-action events, Comm registers prefix LPiml, Slash registers /lp, TestMode and Window register their options
+    I->>M: OnInitialize: modules get their storage and register options, tabs and tooltip lines
     G->>I: PLAYER_LOGIN (also after every /reload)
-    I->>C: OnEnable: Events listens for ENCOUNTER_START/END, Roster scans group, Comm adds flush triggers, Version schedules HELLO
-    I->>M: EnableModule for each module enabled in the DB: Ticker registers game events, its TICK handler and sims
+    I->>C: OnEnable: Events listens for ENCOUNTER_START/END, Roster scans group, PlayerEvents takes its baseline, Comm adds flush triggers, Version schedules HELLO, Window creates the minimap button, Options builds the Blizzard panel (next frame)
+    I->>M: EnableModule for each module enabled in the DB: Ticker and Stats subscribe to events and messages, Stats compacts its log and schedules its first broadcast
     G->>M: PLAYER_ENTERING_WORLD (initial login: baseline only, nothing announced)
 ```
+
+## Stats: from a game event to the leaderboard
+
+```mermaid
+flowchart LR
+    subgraph Mine["My client"]
+        GE["Game events<br/>PLAYER_MONEY, CHAT_MSG_LOOT,<br/>QUEST_TURNED_IN, ..."]
+        PE["Core/PlayerEvents<br/>LP_PLAYER_DEAD, LP_PLAYER_LEVEL_UP,<br/>LP_INSTANCE_ENTER/LEAVE"]
+        COL["Collectors, Money,<br/>Loot, PvP"]
+        LOG[("Event log<br/>per character<br/>SavedVariables")]
+        BUCKET[("Daily buckets<br/>rollups + live counters<br/>jumps, food, group time")]
+        AGG["Model.AggregateAll<br/>tonight · week · all"]
+        SYNC["Sync<br/>STATS message,<br/>max 1 per 30 s"]
+    end
+    subgraph Friend["Friend's client"]
+        CACHE[("Friends cache<br/>SavedVariables,<br/>last seen")]
+        PART["GetParticipants<br/>me + friends<br/>(+ sample friends)"]
+        LB["Leaderboard.lua<br/>awards, ranking (pure)"]
+        UI["LeaderboardTab<br/>+ minimap tooltip"]
+    end
+    GE --> COL
+    GE --> PE --> COL
+    COL -->|"Record()"| LOG
+    COL -->|"Count()"| BUCKET
+    LOG -->|"Compact: older than 30 days<br/>or beyond 5000 events"| BUCKET
+    LOG --> AGG
+    BUCKET --> AGG
+    AGG --> SYNC -->|"Comm: held during bosses,<br/>newest replaces older"| CACHE
+    CACHE --> PART --> LB --> UI
+```
+
+The same flow runs the other way round too: my own aggregates join
+`GetParticipants` directly, and friends' STATS end up in my cache.
+
+1. **Collect**: each collector turns one kind of game event into
+   `Stats:Record(type, data)`. Every log entry gets the same context fields
+   (time, zone, level, instance, group size). Things that happen constantly
+   (jumps, food, group time) are counters in today's bucket instead of log
+   entries. The "Collect stats" setting turns all of it off.
+2. **Gold sources**: `PLAYER_MONEY` has no reason attached, so `Money.lua`
+   infers one. A short-lived hint from what just happened (quest turn-in,
+   repair, flight, mail or AH mail) wins. Otherwise the open window decides
+   (loot, merchant, mail, trade, AH, trainer, flight map), else "other".
+3. **Model**: `Model.lua` is pure Lua. Gaming days start at 06:00 local
+   time, so a late session still counts as "tonight"; weeks start Monday
+   06:00. `Compact` rolls old events into daily buckets without changing
+   totals. `AggregateAll` produces the three periods.
+4. **Share**: `Sync.lua` sends only the three aggregates, with the
+   sender's day/week keys, on login, group join and after changes (at most
+   once per 30 s, never with "Share my stats" off). Only award-relevant
+   timestamps are included to keep it to a couple of chunks.
+5. **Cache**: receivers sanitize every field and keep the latest
+   aggregates per friend with "last seen", so offline friends stay on the
+   leaderboard. A friend's "tonight" from an earlier day counts as empty.
+6. **Show**: `Leaderboard.lua` computes awards (ties go to whoever got
+   there first) and rankings from the participants list. `LeaderboardTab`
+   only draws them.
+
+## Settings and window
+
+`Core/Options` is a registry. Ticker, Stats, TestMode and Window each add
+their own options with get/set functions on their own SavedVariables. After
+login the registry builds one Blizzard Settings category from them, using
+proxy settings, so the panel always shows live values (a `/lp sound off`
+is reflected immediately). `Core/Window` is a shell with a tab registry.
+Modules add tabs and minimap-tooltip lines, so later stages (Profiles, PvP,
+Tonight) plug in without touching the window code.
 
 ## One event end to end: my death on my friend's screen
 
@@ -257,7 +332,13 @@ WoW: Forever uses Retail's (Midnight) addon rules. What that means here:
 | Events that don't exist on this client | `Events:Register` (`C_EventUtils.IsEventValid`) | Skipped with a debug line instead of a Lua error |
 | Protected functions / blocked actions | `Log.lua` | We call none. ADDON_ACTION_BLOCKED/FORBIDDEN are recorded and shown in debug/test mode so a hit is obvious |
 | Throttling (per prefix, server side) | ChatThrottleLib (via AceComm), `Version.HELLO_COOLDOWN`, queue cap | Messages only on real events; compressed to few chunks; HELLO bursts coalesced |
-| No visible chat, no automation | By design; enforced by `spec/support/wow_mock.lua` | Output is `DEFAULT_CHAT_FRAME:AddMessage` + our own frame only |
+| No visible chat, no automation | By design; enforced by `spec/support/wow_mock.lua` | Output is `DEFAULT_CHAT_FRAME:AddMessage` + our own frames only. `RequestTimePlayed` is never called (it prints to chat); played time comes from our own session timer |
+| Protected functions we want to observe (`JumpOrAscendStart`) | `Stats:PostHook` (Collectors.lua) | `hooksecurefunc` post-hooks only: they run after Blizzard's code and can't change or block it. Never called, never replaced |
+| Chat payloads secret during chat lockdown (`CHAT_MSG_SKILL`, `CHAT_MSG_SYSTEM`) | `Util.MatchFormat` | Secret text is never matched; the skill-up or duel is simply not recorded |
+| Spell casts secret while restricted (`UNIT_SPELLCAST_SUCCEEDED`) | `Stats:OnSpellcastSucceeded` | Secret spell ID: hearthstone/food/drink not counted |
+| PvP scoreboard secret during an active match (`C_PvP.GetScoreInfo`) | `PvP.lua` | Read only after `PVP_MATCH_COMPLETE`; every value checked, secret ones dropped |
+| System messages are localized | `Util.MatchFormat` with the client's GlobalStrings | Loot, skill and duel messages are parsed with the client's own format strings, never hard-coded English |
+| Addon whispers to yourself are rejected | `Comm:SendSelfTest`, `Sync.lua` | Real transport tests and stats sync use group channels only |
 
 Everything here that couldn't be verified offline is marked
 `TODO(verify in-game)` in the code and listed in TESTING.md.
