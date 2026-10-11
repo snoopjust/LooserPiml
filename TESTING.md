@@ -37,7 +37,14 @@ Covered:
 | Serialize/compress roundtrip (all byte values), multi-chunk transport between two clients, RAID/solo channel choice, echo/duplicate/protocol filtering, hold queue + flush around encounters and lockdown, retry of refused sends, give-up, stale drop, queue cap, test-mode loopback | `comm_spec.lua` |
 | Version parse/compare, login handshake, outdated/newer warnings (once), HELLO reply rules, coalescing, protocol mismatch, dev builds, fake group versions | `version_spec.lua` |
 | Stats counting, test events excluded from all-time, ranking, Death King report, persistence across reload | `stats_spec.lua` |
-| Death/level-up/enter/leave detection, duplicate deaths, drowning (incl. event order, secret values), corpse runs, receiving + sanitizing, encounter hold + "During the boss", `/lp sim` → loopback → receive → stats → display, two-client end-to-end | `ticker_spec.lua` |
+| Death/level-up/enter/leave detection, duplicate deaths, drowning (incl. event order, secret values), corpse runs, receiving + sanitizing, encounter hold + "During the boss", `/lp sim` → loopback → receive → stats → display, two-client end-to-end, banner sound | `ticker_spec.lua` |
+| Localized format strings → patterns (positional args, secret text), money/duration formatting | `util_spec.lua` |
+| Gaming day/week periods (06:00 boundary), aggregation per event type, merge, rollup + cap without changing totals, aggregation per period, sanitizing received aggregates | `stats_model_spec.lua` |
+| Recording per event type with mocked events: death, level-up (played time), quests, instances, boss kills/wipes, money sources (merchant, repair, loot grace, mail, AH mail, flight, quest), travel, jumps, food/drink, group time, rare loot, crafting, gathering, skill-ups, duels, battlegrounds, honor; collect off; compaction; simulated events never recorded | `stats_collect_spec.lua` |
+| Sync: exchange on login/changes, ≤ 1 broadcast per 30 s, share off = nothing sent, staleness of tonight/week, cache survives reload (offline friends), hostile payloads, boss-fight queue with newest snapshot only, message size, sample friends | `stats_sync_spec.lua` |
+| Awards incl. ties and empty data, ranking rows and bar fractions, formatting, ranking with real synced data | `leaderboard_spec.lua` |
+| Option defaults, v0.1.0 → v0.2.0 migration, ticker filters, own events, boss recap, banner time/size/move/reset, Blizzard panel build with live proxy values, reset confirmation, testing buttons | `options_spec.lua` |
+| Window open/ESC/toggle/position, leaderboard contents and selectors, minimap button clicks, tooltip lines, minimap hide/show, Addon Compartment callbacks, footer version status | `window_spec.lua` |
 
 ---
 
@@ -96,6 +103,39 @@ saved, so a restart clears them. TODO(verify in-game): do they exist on Forever?
 - [ ] Same with `addonEncounterRestrictionsForced 1`. Banners are held until it's switched off, then shown within about 2 s (Display re-checks every 2 s, so a missing end event is fine). Note whether `C_InstanceEncounter.IsEncounterInProgress()` reports true while it's forced.
 - [ ] No `[Blocked action]` / `[Forbidden action]` line for LooserPiml at any time. If one shows up: **stop and report** (copy `/lp log`).
 
+### 2.6 Stage A (v0.2.0): window, minimap, settings, stats
+
+**Window and minimap**
+- [ ] The minimap button (skull) appears. Left-click opens/closes the window, right-click opens the settings, drag moves it around the minimap; the position is kept after `/reload`.
+- [ ] The Addon Compartment (addon list button on the minimap) lists LooserPiml once, with icon; left/right click and tooltip work. No duplicate entry.
+- [ ] Tooltip: "LooserPiml", click hints, friends online with LooserPiml, deaths tonight, Death King.
+- [ ] Window: title "LooserPiml · Group stats", close button, ESC closes it, it can be dragged and stays where it was after `/reload`. Colors look like the mockup (dark brown, bronze borders, gold headings), text is readable.
+- [ ] `/lp test on`, then Settings › Testing › "Fill with sample friends": the leaderboard shows four sample friends; period buttons (Tonight / This week / All time) and metric buttons (Deaths / Gold looted / Quests / Level-ups) switch the content; bars look right; names are class-colored.
+- [ ] Solo without test mode: the cards say "No one yet" (or show you), with the hint to group up.
+
+**Settings (Esc › Options › AddOns › LooserPiml)**
+- [ ] The category exists with the sections Ticker messages, Banner, Stats, Minimap, Testing.
+- [ ] Each Ticker checkbox hides its message type (try with `/lp sim ...` in test mode); "Also show my own events" off hides only your own.
+- [ ] Banner: display time and size sliders change the next banner; "Unlock / lock" shows a sample banner you can drag, locking makes it click-through again; "Reset banner position" puts it back. Position is kept after `/reload`.
+- [ ] Stats: "Reset my stats" asks for confirmation first; "No" keeps everything.
+- [ ] Minimap: unticking hides the button, ticking shows it again.
+- [ ] Testing buttons work (simulate death / level up / boss fight, sample friends, self-test, debug log).
+
+**Stats collection** (with `/lp debug on`: each recorded event logs "Stats: <type> recorded"; check with `/lp log 30`)
+- [ ] Death, level-up (`played` close to `/played` for that level), quest turn-in (with XP and money).
+- [ ] Gold: loot coins from a mob (`loot`), sell and buy at a vendor (`vendor_sell` / `vendor_buy`), "Repair all" (`repair`), take gold from a normal mail (`mail`) and from an auction house sale (`ah_mail`), pay a trainer (`trainer`), take a flight (`flight`).
+- [ ] Loot a blue/purple item: `loot_rare` with the right quality. Grey/white/green items are not recorded.
+- [ ] Craft something (`profession` crafted), gather a herb/ore node (`gathered`), fish (`gathered`, source fishing), get a skill-up (`skillup`; for a profession `profession = true`, for weapon/defense skills `false`).
+- [ ] New subzone, flight path, hearthstone are recorded; jumping counts only real jumps (not swimming up or pressing in mid-air); eating and drinking are counted.
+- [ ] Duel a friend: win, lose and flee once each; only your own duels are recorded, with the opponent's name.
+- [ ] Battleground: joined, finished (won/lost, your killing blows etc.), and leaving early counts as deserted. Honor snapshot after honor changes.
+- [ ] No `[Blocked action]` / `[Forbidden action]` line for LooserPiml during any of this, especially while jumping (post-hook on a protected function).
+
+**Sync** (with a friend, see section 3)
+- [ ] After grouping, the friend appears on your leaderboard within about 10 s; changes arrive within about 30 s.
+- [ ] After the friend logs out and you `/reload`, they are still listed, marked offline.
+- [ ] Settings › Stats › "Share my stats" off on one side: the other side stops receiving updates.
+
 ---
 
 ## 3. Two clients (15 minutes with one friend)
@@ -109,7 +149,7 @@ Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
    - [ ] Friend dies. You see the banner with their class color, plus the chat line. They see it once, not twice.
    - [ ] Friend levels up (or use a fresh low-level char). You see "reached level N".
    - [ ] Friend enters/leaves a dungeon while you're outside. You see it.
-   - [ ] `/lp stats` on your side counts the friend's deaths (session + all-time).
+   - [ ] `/lp stats chat` on your side counts the friend's deaths (session + all-time); the leaderboard window (`/lp stats` or the minimap button) shows them too.
 3. **Encounter queue (5 min)**: 5-man dungeon, first boss
    - [ ] During the boss one of you dies. Nobody gets a banner during the fight.
    - [ ] After the boss (kill or wipe) both see "During the boss: X died." within a few seconds.
@@ -152,3 +192,22 @@ Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
 | 23 | A plain `LooserPiml.toc` (no `_Forever`/`_Camelot` suffix) loads on Forever | Section 2.1 | |
 | 25 | Banner sound IDs (8959 raid warning, 888 level-up) exist and play on Forever; the larger 40 pt outlined font looks right | `/lp test on`, `/lp sim death Max`, `/lp sim levelup Jo` | **OK (2026-10-11)**: banner and sounds work |
 | 24 | `C_EventUtils.IsEventValid` exists. Without it, unknown events could raise errors on registration | No Lua errors on login | No login errors (2026-10-11). Existence not checked separately |
+| 26 | Post-hook on `JumpOrAscendStart` (protected) causes no blocked action; `IsFalling()` is still false right after a ground jump | Section 2.6, jump around with debug on | |
+| 27 | Hearthstone spell ID 8690; food/drink detected via the names of spells 433 ("Food") and 430 ("Drink") | Section 2.6 | |
+| 28 | `TakeTaxiNode`, `TaxiNodeName` exist (flight + flight cost) | Section 2.6 | |
+| 29 | `RepairAllItems` post-hook (repair source); vendor sell/buy classified by the open merchant window | Section 2.6 | |
+| 30 | `TakeInboxMoney`/`AutoLootMailItem` post-hooks; `GetInboxInvoiceInfo(index)` still returns "seller" in the post-hook (AH mail) | Section 2.6 | |
+| 31 | Coin loot money arrives within 2 s of `LOOT_CLOSED` (window grace) | Section 2.6 | |
+| 32 | Loot strings `LOOT_ITEM_SELF(_MULTIPLE)`, `LOOT_ITEM_PUSHED_SELF(_MULTIPLE)`, `LOOT_ITEM_CREATED_SELF(_MULTIPLE)` match; `C_Item.GetItemQualityByID(link)` works | Section 2.6 | |
+| 33 | `GetLootSourceInfo(1)` gives "GameObject-..." for herb/ore nodes; `IsFishingLoot` exists | Section 2.6 | |
+| 34 | `SKILL_RANK_UP` + `CHAT_MSG_SKILL`; `GetProfessions`/`GetProfessionInfo` exist (profession flag) | Section 2.6 | Skill-up messages exist (Defense skill-up seen 2026-10-11) |
+| 35 | `DUEL_WINNER_KNOCKOUT`/`DUEL_WINNER_RETREAT` with positional arguments; names without realm for the same realm | Section 2.6 | |
+| 36 | `PVP_MATCH_COMPLETE` winner is a faction index (0 Horde / 1 Alliance); `C_PvP.GetScoreInfo` readable after the match | Section 2.6 | |
+| 37 | `UnitHonor`/`UnitHonorLevel` and `HONOR_XP_UPDATE` exist on Forever (or Forever uses classic honor ranks) | Section 2.6 | |
+| 38 | `C_FriendList.GetFriendInfo(name).connected` for "friends online" | Tooltip while a friend (on your friends list) is online but not grouped | |
+| 39 | Settings panel: `RegisterVerticalLayoutCategory`, proxy settings, sliders with formatter, buttons, section headers render | Section 2.6 | |
+| 40 | LibDBIcon v12.1.1 works on Forever (button, drag, tooltip); compartment entry via `.toc` fields appears once | Section 2.6 | |
+| 41 | Window widgets: `BackdropTemplate`, `UIPanelCloseButton`, gold coin texture `Interface\MoneyFrame\UI-GoldIcon`, fonts; layout fits without overlap | Section 2.6 | |
+| 42 | Played time per level from our session timer is close to `/played` | Level up once with the addon running from the start of the level | |
+| 43 | STATS sync between two clients (about 2 chunks, BULK priority) arrives; leaderboard shows the friend; offline after relog | Section 2.6 / 3 | |
+| 44 | `StaticPopupDialogs`/`StaticPopup_Show` confirmation dialog works | Section 2.6 (reset my stats) | |

@@ -47,10 +47,22 @@ tick "Load out of date AddOns" until a new release is out.
 Nothing to configure: events show up as a banner in the middle of the screen
 and as a line in your chat window (only you see it).
 
+- **Minimap button** (the skull): left-click opens the group stats window
+  with the leaderboard, right-click opens the settings, drag moves it.
+  Hover it for friends online, deaths tonight and the current Death King.
+- **Settings**: Esc › Options › AddOns › LooserPiml. Choose which messages
+  you see, move and resize the banner, turn stats sharing on or off.
+- **Stats**: LooserPiml records your own character's evening (deaths, gold,
+  quests, loot, duels, ...) on your computer and shares only the totals
+  with friends in your group, for the leaderboard.
+
+Slash commands are optional, for power users:
+
 | Command | What it does |
 |---|---|
 | `/lp` | Help |
-| `/lp stats` | Death King and rankings (this session and all-time) |
+| `/lp stats` | Opens the group stats window (`/lp stats chat`: text ranking in chat) |
+| `/lp options` | Opens the settings |
 | `/lp sound on\|off` | Banner sound (death: warning, level-up: fanfare) |
 | `/lp version` | Your version and the versions in your group |
 | `/lp test on\|off` | Test mode: nothing is sent, fake group members appear |
@@ -140,8 +152,13 @@ local _, ns = ...
 local Bets = ns:NewModule("Bets")
 
 function Bets:OnInitialize()
-	self.db = ns.DB:GetModuleDB(self.name, { open = {} }) -- SavedVariables
+	self.db = ns.DB:GetModuleDB(self.name, { open = {}, enabled = true }) -- SavedVariables
 	ns.Slash:Register("bet", function(args) ... end, "<text>", "start a bet")
+	ns.Options:AddSection("bets", "Bets", 50)                 -- settings panel
+	ns.Options:Add("bets", { type = "checkbox", key = "bets.enabled", label = "Allow bets", default = true,
+		get = function() return self.db.enabled end, set = function(v) self.db.enabled = v end })
+	ns.Window:RegisterTab({ id = "bets", title = "Bets", order = 40,   -- main window tab
+		create = function(parent) ... end, refresh = function(frame) ... end })
 end
 
 function Bets:OnEnable()
