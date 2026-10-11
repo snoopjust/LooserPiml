@@ -9,6 +9,10 @@
 --   }
 --
 -- Test mode is deliberately not saved: after a /reload you are back to normal.
+--
+-- The game reads WTF\Account\<name>\SavedVariables\LooserPiml.lua into the
+-- global LooserPimlDB right before our ADDON_LOADED. It writes the global back
+-- only on logout or /reload, so a client crash loses the session's changes.
 local _, ns = ...
 
 local DB = {}

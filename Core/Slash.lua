@@ -87,6 +87,8 @@ function Slash:OnInitialize()
 		ns.Log:PrintRecent(tonumber(arg))
 	end, "[count]", L.HELP_LOG)
 
+	-- The game finds slash commands through SLASH_<KEY><n> globals plus
+	-- SlashCmdList[KEY]. These are the only globals we create on purpose.
 	SLASH_LOOSERPIML1 = "/lp"
 	SLASH_LOOSERPIML2 = "/looserpiml"
 	SlashCmdList.LOOSERPIML = function(input)

@@ -18,6 +18,8 @@ local function isInternal(event)
 	return event:sub(1, 3) == "LP_"
 end
 
+-- frame:RegisterEvent raises a Lua error for events the client doesn't know.
+-- Forever shares most, not all, of Retail's events, so ask first.
 local function isValidEvent(event)
 	if C_EventUtils and C_EventUtils.IsEventValid then
 		return C_EventUtils.IsEventValid(event)
@@ -102,6 +104,7 @@ local function dispatch(event, ...)
 	end
 	for i = 1, #snapshot do
 		local entry = snapshot[i]
+		-- One broken handler must not starve the others of this event.
 		ns.SafeCall(entry.fn, entry.owner, event, ...)
 	end
 end
@@ -122,6 +125,9 @@ end)
 
 local encounter = { real = false, simulated = false, name = nil }
 
+-- Asks the client directly. This also covers a /reload in the middle of a boss
+-- fight, where we never saw ENCOUNTER_START. C_InstanceEncounter's version is
+-- the 12.0 API; the global is the older name, kept as a fallback.
 local function clientSaysEncounter()
 	local fn = (C_InstanceEncounter and C_InstanceEncounter.IsEncounterInProgress) or IsEncounterInProgress
 	if not fn then
@@ -149,6 +155,10 @@ local function safeName(name)
 	return nil
 end
 
+-- ENCOUNTER_START/END fire for instanced boss fights, 5-man bosses included
+-- (TODO(verify in-game) on Forever). Under Midnight rules addon messages
+-- are blocked while a boss fight runs, so this is our earliest warning.
+-- Payload: encounterID, encounterName, difficultyID, groupSize[, success].
 function Events:ENCOUNTER_START(_, _, encounterName)
 	encounter.real = true
 	encounter.name = safeName(encounterName)
@@ -163,6 +173,7 @@ function Events:ENCOUNTER_END(_, _, encounterName, _, _, success)
 	if not encounter.simulated then
 		encounter.name = nil
 	end
+	-- success is a number (1 = kill, 0 = wipe), not a boolean.
 	self:Fire("LP_ENCOUNTER_END", name, not ns.IsSecret(success) and success == 1)
 end
 

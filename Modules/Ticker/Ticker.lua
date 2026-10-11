@@ -99,6 +99,9 @@ function Ticker:IsPlayerDeadOrGhost()
 	return dead and true or false
 end
 
+-- PLAYER_DEAD isn't documented to fire exactly once per death (e.g. a
+-- /reload while dead), and counting twice would spoil the stats. So we only
+-- count again after PLAYER_ALIVE/PLAYER_UNGHOST. TODO(verify in-game).
 function Ticker:PLAYER_DEAD()
 	if self.dead then
 		return -- already counted this death
@@ -127,7 +130,17 @@ end
 ----------------------------------------------------------------------
 -- Uses only the MIRROR_TIMER_* payload and GetMirrorTimerProgress. If any of
 -- these values is secret, drowning detection is skipped (plain death).
+--
+-- Why not the combat log: COMBAT_LOG_EVENT_UNFILTERED can't be registered
+-- under Midnight rules, so there is no "killed by X". The breath bar is a
+-- "mirror timer". When it hits zero you don't die at once; you take damage
+-- every few seconds until dead. So "drowned" means the timer was at or past
+-- zero at death, not exactly zero. The order of MIRROR_TIMER_STOP and
+-- PLAYER_DEAD at that moment is TODO(verify in-game), hence the stop window.
 
+-- Payload: value/maxValue in milliseconds; scale = change per second (-1 =
+-- draining in real time, positive = refilling after surfacing); paused is a
+-- number (0/1) per the docs, boolean on some clients.
 function Ticker:MIRROR_TIMER_START(_, timerName, value, _, scale, paused)
 	if ns.IsSecret(timerName) or timerName ~= "BREATH" then
 		return
@@ -179,7 +192,8 @@ function Ticker:BreathRemaining()
 		if type(progress) == "number" and not ns.IsSecret(progress) and progress > 0 then
 			return progress
 		end
-		-- 0 means "inactive" or "empty"; fall back to the start payload.
+		-- The API returns 0 for "timer inactive", so 0 is ambiguous with
+		-- "empty". Fall back to the start payload.
 	end
 	if breath.paused then
 		return breath.value
@@ -204,6 +218,9 @@ end
 -- Dungeon / raid enter and leave
 ----------------------------------------------------------------------
 
+-- instanceType: "party" = dungeon, "raid", "pvp", "arena", "scenario",
+-- "none". Instance names are localized, but instanceID is stable, so the ID
+-- is the comparison key (name only as a fallback).
 function Ticker:GetCurrentInstance()
 	local inInstance, instanceType = IsInInstance()
 	if ns.IsSecret(inInstance) or ns.IsSecret(instanceType) then
@@ -216,6 +233,9 @@ function Ticker:GetCurrentInstance()
 	return { name = notSecret(name), type = instanceType, id = notSecret(instanceID) or notSecret(name) }
 end
 
+-- PLAYER_ENTERING_WORLD fires after every loading screen, and entering or
+-- leaving an instance always has one, so there's no polling. The flags tell
+-- us when the loading screen came from a login or /reload rather than a move.
 function Ticker:PLAYER_ENTERING_WORLD(_, isInitialLogin, isReloadingUi)
 	local before, now = self.instance, self:GetCurrentInstance()
 	self.instance = now
@@ -263,7 +283,8 @@ local function cleanText(value, maxLength)
 	return (value:sub(1, maxLength):gsub("|", "||"))
 end
 
--- Copies only known fields with the expected types.
+-- Copies only known fields with the expected types. The payload comes from
+-- another client (possibly an older or buggy version), so trust nothing.
 function Ticker:Sanitize(data)
 	if type(data) ~= "table" or not self.KINDS[data.k] then
 		return nil

@@ -91,6 +91,11 @@ end
 -- Restriction events
 ----------------------------------------------------------------------
 
+-- ADDON_ACTION_BLOCKED: a protected function was called from tainted code
+-- (typically in combat). ADDON_ACTION_FORBIDDEN: a function addons may never
+-- call. Both carry (blamedAddon, functionName). The game only shows a vague
+-- "action blocked by an addon" message, so we record the function name.
+-- LooserPiml calls no protected functions; any hit here is a bug to report.
 local function isOurs(addon)
 	return addon == ADDON_NAME
 end
@@ -136,8 +141,9 @@ end
 -- Error handler hook (debug/test mode only)
 ----------------------------------------------------------------------
 -- Catches our Lua errors that don't pass through ns.SafeCall (e.g. frame
--- scripts). Installed only after debug or test mode is switched on; the
--- previous handler (Blizzard's, BugSack's, ...) is always called.
+-- scripts). There is only one error handler for the whole UI, shared by all
+-- addons, so it is installed only after debug or test mode is switched on,
+-- and the previous handler (Blizzard's, BugSack's, ...) is always called.
 
 function Log:InstallErrorHook()
 	if self.errorHookInstalled or not (geterrorhandler and seterrorhandler) then

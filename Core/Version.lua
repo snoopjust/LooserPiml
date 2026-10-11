@@ -17,6 +17,9 @@ Version.TEST_BASELINE = "1.0.0" -- dev builds compare as this in test mode
 Version.known = {}  -- fullName -> { version, protocol }
 Version.warned = {} -- fullName -> true
 
+-- The packager replaces @project-version@ in the .toc with the git tag. In a
+-- git checkout (junction) the placeholder stays. GetAddOnMetadata moved
+-- into C_AddOns in 10.1; the global is the old name, kept as a fallback.
 local function readVersion()
 	local getMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
 	local version = getMetadata and getMetadata(ADDON_NAME, "Version")

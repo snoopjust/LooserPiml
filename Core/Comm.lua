@@ -25,7 +25,11 @@ local Comm = {}
 ns:RegisterCore("Comm", Comm)
 AceComm:Embed(Comm) -- Comm:RegisterComm, Comm:SendCommMessage
 
-Comm.PREFIX = "LPiml"          -- registered addon-message prefix (max 16 chars)
+-- Prefixes are limited to 16 chars and must be registered
+-- (C_ChatInfo.RegisterAddonMessagePrefix, done by RegisterComm), otherwise
+-- the client never delivers them. The server throttles per prefix (about 10
+-- messages burst, then 1/s), so keeping one prefix plus few chunks matters.
+Comm.PREFIX = "LPiml"
 Comm.PROTOCOL = 1              -- bump on incompatible envelope/payload changes
 Comm.MAX_QUEUE = 50            -- held messages; oldest are dropped beyond this
 Comm.MAX_AGE = 2 * 60 * 60     -- seconds a held message stays worth sending
@@ -48,6 +52,10 @@ Comm.queue = {}
 -- Encoding
 ----------------------------------------------------------------------
 
+-- Addon messages are at most 255 bytes and may not contain NUL bytes.
+-- Compressing keeps most messages to a single chunk, which saves throttle
+-- budget. Compressed data does contain NULs, so it is re-encoded for the
+-- addon channel.
 function Comm:Encode(envelope)
 	local serialized = AceSerializer:Serialize(envelope)
 	local compressed = LibDeflate:CompressDeflate(serialized)
@@ -115,12 +123,16 @@ end
 -- Returns true plus a reason ("encounter" or "lockdown") while addon
 -- messages must not be sent. The encounter is checked first because it is
 -- the more specific reason (receivers show "During the boss: ...").
+-- Both signals are used because which one Forever actually raises during a
+-- boss is TODO(verify in-game). InChatMessagingLockdown also covers
+-- Mythic+/PvP and possibly whole dungeons ("communication-restricted maps").
 function Comm:IsRestricted()
 	if ns.Events:IsEncounterActive() then
 		return true, "encounter"
 	end
 	if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown then
 		local locked = C_ChatInfo.InChatMessagingLockdown()
+		-- Testing a secret boolean errors; IsSecret short-circuits first.
 		if ns.IsSecret(locked) or locked then
 			return true, "lockdown"
 		end
@@ -133,6 +145,9 @@ end
 --   "queued"   held because sending is restricted right now
 --   "solo"     not in a group, nobody to tell
 --   "loopback" test mode, delivered locally only
+-- Why our own queue on top of ChatThrottleLib's: CTL only retries the
+-- AddonMessageThrottle result. Any other refusal (AddOnMessageLockdown during
+-- a boss, NotInGroup, ...) is reported once and the message is dropped.
 function Comm:Send(msgType, data, prio)
 	local entry = {
 		t = msgType,
@@ -150,7 +165,11 @@ end
 
 local function onChunkSent(entry, _, _, didSend)
 	-- AceComm passes (arg, bytesSent, bytesTotal, didSend) per chunk.
-	-- didSend is nil on old AceComm versions; only false means failure.
+	-- didSend is CTL's boolean, not the Enum.SendAddonMessageResult code, so
+	-- we can't tell a lockdown from other refusals here. It is nil on old
+	-- AceComm versions; only false means failure. If one chunk of a multi-part
+	-- message fails, receivers discard the incomplete message, and we resend
+	-- all of it (their duplicate filter drops any copy that did arrive).
 	if didSend == false and not entry.failed then
 		entry.failed = true
 		Comm:OnSendFailed(entry)
@@ -174,6 +193,8 @@ function Comm:Transmit(entry)
 		return "loopback"
 	end
 
+	-- Resolved now, not when queued: the group may have changed (or
+	-- disbanded) while the message was held.
 	local channel = ns.Roster:GetChannel()
 	if not channel then
 		return "solo"
@@ -300,9 +321,12 @@ function Comm:Receive(text, sender, distribution, isTest)
 		return
 	end
 
+	-- AceComm Ambiguates senders: "Name" for our realm, "Name-Realm" otherwise.
+	-- Normalize gives one key for both.
 	local fullSender = ns.Roster:Normalize(sender)
 	if ns.Roster:IsPlayer(fullSender) and envelope.t ~= self.SELFTEST then
-		-- Own events are displayed locally; group channels echo them back.
+		-- The server delivers PARTY/RAID addon messages to the sender too.
+		-- Own events were already displayed locally when they happened.
 		ns.Log:Debug("%s own %s message", isTest and "[test] Looped back" or "Ignored echo of", envelope.t)
 		return
 	end
@@ -345,6 +369,9 @@ end
 -- /lp selftest: a real addon message, whispered to ourselves. Bypasses
 -- test-mode loopback and the hold queue on purpose.
 -- onResult(didSend) is called once all chunks were handed to the client.
+-- WHISPER is the only channel that works solo. Addon whispers outside
+-- instances are exempt from the per-prefix throttle. Whether the server
+-- delivers an addon whisper to yourself on Forever: TODO(verify in-game).
 function Comm:SendSelfTest(data, onResult)
 	local envelope = { v = self.PROTOCOL, t = self.SELFTEST, s = self.session, id = nextId(), d = data }
 	local text = self:Encode(envelope)
@@ -375,12 +402,16 @@ function Comm:OnEnable()
 	ns.Events:Register(self, "LP_ENCOUNTER_END", function()
 		self:ScheduleFlush()
 	end)
+	-- Payload (type, state). Documented to fire before a restriction becomes
+	-- active and after it was lifted, so Inactive means "may send again".
+	-- FLUSH_DELAY gives the client a moment anyway; Flush re-checks.
 	ns.Events:Register(self, "ADDON_RESTRICTION_STATE_CHANGED", function(_, _, _, state)
 		local inactive = Enum and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
 		if not ns.IsSecret(state) and state == inactive then
 			self:ScheduleFlush()
 		end
 	end)
+	-- Leaving an instance can lift a lockdown without any encounter event.
 	ns.Events:Register(self, "PLAYER_ENTERING_WORLD", function()
 		self:ScheduleFlush()
 	end)

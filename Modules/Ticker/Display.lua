@@ -189,6 +189,10 @@ function Display:GetFrame()
 	if self.frame then
 		return self.frame
 	end
+	-- Parented to UIParent so it hides with the UI (Alt+Z) and scales with
+	-- it. Strata HIGH puts it above the game UI but below dialogs.
+	-- EnableMouse(false) makes it click-through: it must never eat a click
+	-- in the middle of the screen.
 	local frame = CreateFrame("Frame", "LooserPimlBanner", UIParent)
 	frame:SetSize(1000, 60)
 	frame:SetPoint("CENTER", UIParent, "CENTER", 0, self.OFFSET_Y)
@@ -196,6 +200,8 @@ function Display:GetFrame()
 	frame:EnableMouse(false)
 	frame:Hide()
 
+	-- GameFontNormalHuge is a font object from Blizzard's UI code.
+	-- TODO(verify in-game) that Forever has it.
 	local text = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 	text:SetPoint("CENTER")
 	text:SetWidth(1000)
@@ -203,6 +209,7 @@ function Display:GetFrame()
 	text:SetTextColor(1, 1, 1)
 	frame.text = text
 
+	-- An AnimationGroup fades in, holds and fades out without any OnUpdate code.
 	local anim = frame:CreateAnimationGroup()
 	local fadeIn = anim:CreateAnimation("Alpha")
 	fadeIn:SetFromAlpha(0)

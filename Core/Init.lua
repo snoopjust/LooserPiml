@@ -36,6 +36,8 @@ end
 -- Calls fn(...) without letting an error break the caller (e.g. the event
 -- dispatcher). Errors still reach the normal error handler (BugSack etc.)
 -- and our debug log. Returns ok, results...
+-- WoW's xpcall forwards extra arguments to fn (Lua 5.2 style); stock Lua 5.1
+-- doesn't, which is why the test mock polyfills it.
 function ns.SafeCall(fn, ...)
 	return xpcall(fn, reportError, ...)
 end
@@ -164,6 +166,10 @@ function ns:Enable()
 	end
 end
 
+-- ADDON_LOADED fires once per addon, so filter by our name. The game loads our
+-- SavedVariables right before our ADDON_LOADED. PLAYER_LOGIN fires after all
+-- addons are loaded (also after every /reload); from then on player, realm
+-- and group information can be trusted.
 local boot = CreateFrame("Frame")
 boot:RegisterEvent("ADDON_LOADED")
 boot:RegisterEvent("PLAYER_LOGIN")

@@ -10,6 +10,9 @@ ns:RegisterCore("Roster", Roster)
 Roster.members = {} -- fullName -> { name, short, class, unit }
 Roster.fake = {}    -- fullName -> member, test mode only
 
+-- GetNormalizedRealmName has spaces and hyphens stripped, the same form the
+-- server uses in "Name-Realm" sender names. It can be nil very early during
+-- login, hence the fallback.
 local function realmName()
 	local realm = GetNormalizedRealmName and GetNormalizedRealmName()
 	if not realm or realm == "" then
@@ -60,6 +63,11 @@ function Roster:GetPlayerClass()
 	return class
 end
 
+-- UnitName returns a realm only for players from other realms. Midnight can
+-- make unit identity secret in combat (documented for non-player units;
+-- group members are players, but we stay defensive). "Unknown"
+-- (UNKNOWNOBJECT) shows up while unit data is still loading; the next
+-- GROUP_ROSTER_UPDATE fills it in.
 local function readUnit(unit)
 	local exists = UnitExists(unit)
 	if ns.IsSecret(exists) or not exists then
@@ -85,6 +93,8 @@ function Roster:Scan()
 			found[member.name] = member
 		end
 	end
+	-- raid1..N include the player, party1..4 don't. GetNumGroupMembers counts
+	-- the player, GetNumSubgroupMembers doesn't.
 	add("player")
 	if IsInRaid() then
 		for i = 1, GetNumGroupMembers() do
@@ -154,9 +164,11 @@ function Roster:ColorName(name, class)
 end
 
 -- Addon channel that reaches the whole group, or nil when solo.
+-- In dungeon-finder groups PARTY/RAID don't reach the instance group, only
+-- INSTANCE_CHAT does. TODO(verify in-game): whether Forever has such groups.
 function Roster:GetChannel()
 	if LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-		return "INSTANCE_CHAT" -- TODO(verify in-game): only used in dungeon-finder groups
+		return "INSTANCE_CHAT"
 	end
 	if IsInRaid() then
 		return "RAID"
