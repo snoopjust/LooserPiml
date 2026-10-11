@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.1.0 (2026-10-11)
 
 First version: Core + Ticker MVP for WoW: Forever (beta, Interface 16001).
+Not yet verified in-game; see TESTING.md.
 
 ### Added
 
