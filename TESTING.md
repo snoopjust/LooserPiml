@@ -142,7 +142,7 @@ Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
 | 13 | `PLAYER_LEVEL_UP` level argument is a plain number | Section 2.4 | |
 | 14 | `GetInstanceInfo()` instanceType `party`/`raid` and a stable instanceID on Forever | Section 2.4 | |
 | 15 | `UnitName`/`UnitClass` of group members are not secret out of combat (class colors work) | Section 3.2 | |
-| 16 | Raid target icon textures and `GameFontNormalHuge` exist and look fine | Section 2.3 | |
+| 16 | Raid target icon textures and `GameFontNormalHuge` exist and look fine | Section 2.3 | **OK (2026-10-11)**: icon and banner render |
 | 17 | SavedVariables persist (an early beta build had a restore bug) | Section 2.1 | |
 | 18 | `INSTANCE_CHAT` in dungeon-finder groups (if Forever has one) | Queue together via finder, check 3.2 | |
 | 19 | `ADDON_ACTION_BLOCKED`/`FORBIDDEN` payload (addon name first) and `LUA_WARNING` exist | Only if something gets blocked; debug log | |
@@ -150,5 +150,5 @@ Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
 | 21 | Packager action builds the zip with libs, `release.json` flavor `forever` | First tag push: check the release assets | |
 | 22 | WowUp (≥ 2.24.0 beta) detects the Forever client and installs from the GitHub URL | Friend installs via section "For friends" in README | |
 | 23 | A plain `LooserPiml.toc` (no `_Forever`/`_Camelot` suffix) loads on Forever | Section 2.1 | |
-| 25 | Banner sound IDs (8959 raid warning, 888 level-up) exist and play on Forever; the larger 40 pt outlined font looks right | `/lp test on`, `/lp sim death Max`, `/lp sim levelup Jo` | |
+| 25 | Banner sound IDs (8959 raid warning, 888 level-up) exist and play on Forever; the larger 40 pt outlined font looks right | `/lp test on`, `/lp sim death Max`, `/lp sim levelup Jo` | **OK (2026-10-11)**: banner and sounds work |
 | 24 | `C_EventUtils.IsEventValid` exists. Without it, unknown events could raise errors on registration | No Lua errors on login | No login errors (2026-10-11). Existence not checked separately |
