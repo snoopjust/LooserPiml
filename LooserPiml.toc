@@ -37,3 +37,5 @@ Modules\Stats\Stats.lua
 Modules\Stats\Model.lua
 Modules\Stats\Collectors.lua
 Modules\Stats\Money.lua
+Modules\Stats\Loot.lua
+Modules\Stats\PvP.lua

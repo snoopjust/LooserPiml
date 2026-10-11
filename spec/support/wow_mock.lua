@@ -179,6 +179,13 @@ function Mock.new(opts)
 	self.spellNames = { [433] = "Food", [430] = "Drink", [8690] = "Hearthstone" }
 	self.taxiNodes = {}
 	self.invoices = {}
+	self.itemQuality = {}
+	self.lootSource = {}
+	self.fishing = false
+	self.professions = { indices = { 1, 2 }, names = { "Mining", "Herbalism" } }
+	self.faction = "Alliance"
+	self.scores = {}
+	self.honor, self.honorLevel = 100, 1
 	self.metadata = { Version = opts.version or "@project-version@" }
 	self.loggedIn = false
 	self.errorHandler = function(err)
@@ -716,6 +723,48 @@ function Mock:BuildEnv()
 		G[name] = function(...)
 			mock.calls[#mock.calls + 1] = { name = name, args = { ... } }
 		end
+	end
+	-- GlobalStrings (English client) used for parsing system messages
+	G.LOOT_ITEM_SELF = "You receive loot: %s."
+	G.LOOT_ITEM_SELF_MULTIPLE = "You receive loot: %sx%d."
+	G.LOOT_ITEM_PUSHED_SELF = "You receive item: %s."
+	G.LOOT_ITEM_PUSHED_SELF_MULTIPLE = "You receive item: %sx%d."
+	G.LOOT_ITEM_CREATED_SELF = "You create: %s."
+	G.LOOT_ITEM_CREATED_SELF_MULTIPLE = "You create: %sx%d."
+	G.LOOT_ITEM = "%s receives loot: %s."
+	G.SKILL_RANK_UP = "Your skill in %s has increased to %d."
+	G.DUEL_WINNER_KNOCKOUT = "%1$s has defeated %2$s in a duel"
+	G.DUEL_WINNER_RETREAT = "%2$s has fled from %1$s in a duel"
+	G.C_Item = {
+		GetItemQualityByID = function(link)
+			return mock.itemQuality[link]
+		end,
+	}
+	G.GetLootSourceInfo = function(slot)
+		return mock.lootSource[slot]
+	end
+	G.IsFishingLoot = function()
+		return mock.fishing
+	end
+	G.GetProfessions = function()
+		return unpack(mock.professions.indices)
+	end
+	G.GetProfessionInfo = function(index)
+		return mock.professions.names[index]
+	end
+	G.UnitFactionGroup = function()
+		return mock.faction
+	end
+	G.C_PvP = {
+		GetScoreInfo = function(index)
+			return mock.scores[index]
+		end,
+	}
+	G.UnitHonor = function()
+		return mock.honor
+	end
+	G.UnitHonorLevel = function()
+		return mock.honorLevel
 	end
 	G.TaxiNodeName = function(index)
 		return mock.taxiNodes[index]

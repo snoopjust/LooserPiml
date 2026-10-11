@@ -76,12 +76,20 @@ function Stats:OnPlayerDead(_, info)
 	})
 end
 
-function Stats:OnInstanceEnter(_, info)
+-- One registration per event and owner, so the battleground bookkeeping in
+-- PvP.lua is called from here instead of registering a second handler.
+function Stats:OnInstanceEnter(event, info)
 	self:Record("instance", { action = "enter", itype = info.type, name = info.name, id = info.id })
+	if self.OnPvPInstanceEnter then
+		self:OnPvPInstanceEnter(event, info)
+	end
 end
 
-function Stats:OnInstanceLeave(_, info)
+function Stats:OnInstanceLeave(event, info)
 	self:Record("instance", { action = "leave", itype = info.type, name = info.name, id = info.id })
+	if self.OnPvPInstanceLeave then
+		self:OnPvPInstanceLeave(event, info)
+	end
 end
 
 -- Payload: encounterID, encounterName, difficultyID, groupSize, success (1/0).

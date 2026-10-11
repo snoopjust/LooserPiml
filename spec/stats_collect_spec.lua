@@ -231,6 +231,125 @@ describe("Stats collectors", function()
 		end)
 	end)
 
+	describe("loot and professions", function()
+		local blue = "|cff0070dd|Hitem:2140::::::::10:::::::|h[Carving Knife]|h|r"
+		local epic = "|cnIQ4:|Hitem:868::::::::10:::::::|h[Ardent Custodian]|h|r"
+		local grey = "|cff9d9d9d|Hitem:2211::::::::10:::::::|h[Bat Ear]|h|r"
+
+		it("records own rare-or-better loot with quality, never others' loot", function()
+			local mock = H.client()
+			mock.itemQuality[blue] = 3 -- from the item API
+			mock:Fire("CHAT_MSG_LOOT", "You receive loot: " .. blue .. ".", "Me")
+			mock:Fire("CHAT_MSG_LOOT", "You receive loot: " .. epic .. "x2.", "Me") -- quality from the link marker
+			mock:Fire("CHAT_MSG_LOOT", "You receive loot: " .. grey .. ".", "Me")
+			mock:Fire("CHAT_MSG_LOOT", "Max receives loot: " .. epic .. ".", "Max")
+			local loot = events(mock, "loot_rare")
+			assert.are.equal(2, #loot)
+			assert.are.equal(3, loot[1].data.quality)
+			assert.are.equal(4, loot[2].data.quality)
+			assert.are.equal(2, loot[2].data.count)
+			assert.are.equal(1, today(mock).n.lootEpic)
+		end)
+
+		it("records crafted items, gathered nodes and fishing", function()
+			local mock = H.client()
+			mock:Fire("CHAT_MSG_LOOT", "You create: " .. grey .. "x5.", "Me")
+			mock.lootSource[1] = "GameObject-0-1-2-3-1731-0000"
+			mock:Fire("LOOT_OPENED", true, false)
+			mock:Fire("LOOT_CLOSED")
+			mock.lootSource[1] = "Creature-0-1-2-3-299-0000"
+			mock:Fire("LOOT_OPENED", true, false)
+			mock:Fire("LOOT_CLOSED")
+			mock.fishing = true
+			mock.lootSource[1] = "GameObject-0-1-2-3-35591-0000"
+			mock:Fire("LOOT_OPENED", true, false)
+			local agg = today(mock)
+			assert.are.equal(5, agg.n.crafted)
+			assert.are.equal(2, agg.n.gathered) -- the herb/ore node and the fishing loot, not the mob
+			assert.are.equal("fishing", last(mock, "profession").data.source)
+		end)
+
+		it("records skill-ups and tells professions from other skills", function()
+			local mock = H.client()
+			mock:Fire("CHAT_MSG_SKILL", "Your skill in Mining has increased to 75.")
+			mock:Fire("CHAT_MSG_SKILL", "Your skill in Defense has increased to 14.")
+			mock:Fire("CHAT_MSG_SKILL", H.Mock.Secret()) -- chat lockdown
+			local skills = events(mock, "profession")
+			assert.are.equal(2, #skills)
+			assert.are.same({ kind = "skillup", skill = "Mining", rank = 75, profession = true }, skills[1].data)
+			assert.is_false(skills[2].data.profession)
+			assert.are.equal(1, today(mock).n.professionSkillUps)
+			assert.are.equal(2, today(mock).n.skillUps)
+		end)
+	end)
+
+	describe("pvp", function()
+		it("records only own duels with result, opponent and whether they run LooserPiml", function()
+			local mock, ns = H.client()
+			ns.Version.known["Max-TestRealm"] = { version = "v0.2.0", protocol = 1 }
+			mock:Fire("CHAT_MSG_SYSTEM", "Me has defeated Max in a duel")
+			mock:Fire("CHAT_MSG_SYSTEM", "Me has fled from Bob in a duel")
+			mock:Fire("CHAT_MSG_SYSTEM", "Bob has fled from Me in a duel")
+			mock:Fire("CHAT_MSG_SYSTEM", "Kim has defeated Lena in a duel") -- not ours
+			mock:Fire("CHAT_MSG_SYSTEM", H.Mock.Secret())
+			local duels = events(mock, "duel")
+			assert.are.equal(3, #duels)
+			assert.are.same({ result = "won", opponent = "Max-TestRealm", opponentHasAddon = true }, duels[1].data)
+			assert.are.equal("fled", duels[2].data.result)
+			assert.are.equal("opponent_fled", duels[3].data.result)
+			assert.is_false(duels[3].data.opponentHasAddon)
+			local agg = today(mock)
+			assert.are.equal(2, agg.n.duelsWon)
+			assert.are.equal(1, agg.n.duelsLost)
+			assert.are.equal(1, agg.n.duelsFled)
+		end)
+
+		it("records battleground joined, finished (with own score) and left early", function()
+			local mock = H.client()
+			mock:EnterInstance("Warsong Gulch", "pvp", 489)
+			mock.scores = {
+				{ name = "Enemy-Other", faction = 0, killingBlows = 9 },
+				{ name = "Me", faction = 1, killingBlows = 4, honorableKills = 12, deaths = 3, honorGained = 250 },
+			}
+			mock:Fire("PVP_MATCH_COMPLETE", 1, 900)
+			mock:LeaveInstance()
+			mock:EnterInstance("Arathi Basin", "pvp", 529)
+			mock:LeaveInstance() -- before the match ended: deserter
+			local pvp = events(mock, "pvp")
+			assert.are.equal("joined", pvp[1].data.kind)
+			assert.are.equal("finished", pvp[2].data.kind)
+			assert.is_true(pvp[2].data.won)
+			assert.are.equal(4, pvp[2].data.killingBlows)
+			assert.are.equal(250, pvp[2].data.honorGained)
+			assert.are.equal("deserted", pvp[4].data.kind)
+			local agg = today(mock)
+			assert.are.equal(1, agg.n.bgWon)
+			assert.are.equal(1, agg.n.bgDeserted)
+			assert.are.equal(2, agg.n.bgJoined)
+		end)
+
+		it("skips secret scoreboard values and still records the match", function()
+			local mock = H.client()
+			mock:EnterInstance("Warsong Gulch", "pvp", 489)
+			mock.scores = { { name = "Me", faction = 1, killingBlows = H.Mock.Secret() } }
+			mock:Fire("PVP_MATCH_COMPLETE", 0, 600)
+			local finished = last(mock, "pvp")
+			assert.is_false(finished.data.won)
+			assert.is_nil(finished.data.killingBlows)
+		end)
+
+		it("snapshots honor only when it changes", function()
+			local mock = H.client()
+			mock:Fire("HONOR_XP_UPDATE", "player") -- unchanged from the login baseline
+			mock.honor = 180
+			mock:Fire("HONOR_XP_UPDATE", "player")
+			local honor = events(mock, "pvp")
+			assert.are.equal(1, #honor)
+			assert.are.equal(180, honor[1].data.honor)
+			assert.are.equal(180, today(mock).last.honor.v)
+		end)
+	end)
+
 	describe("settings and storage", function()
 		it("records nothing while 'collect stats' is off", function()
 			local mock = H.client()
