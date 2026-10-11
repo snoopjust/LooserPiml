@@ -22,6 +22,7 @@ Core\Events.lua
 Core\DB.lua
 Core\Log.lua
 Core\Roster.lua
+Core\PlayerEvents.lua
 Core\Comm.lua
 Core\Version.lua
 Core\TestMode.lua

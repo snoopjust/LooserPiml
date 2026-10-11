@@ -44,11 +44,12 @@ removable.
 | `Core/DB.lua` | `LooserPimlDB`: defaults, `schemaVersion`, ordered migrations, per-module storage | `Migrate`, `GetModuleDB` |
 | `Core/Log.lua` | Ring buffer + chat output by level; records ADDON_ACTION_BLOCKED/FORBIDDEN, LUA_WARNING, our Lua errors | `IsVerbose`, `CaptureError`, `InstallErrorHook` |
 | `Core/Roster.lua` | Group members as `Name-Realm`, class colors, which addon channel reaches the group, fake members for test mode | `Scan`, `Normalize`, `GetChannel`, `ColorName` |
+| `Core/PlayerEvents.lua` | Detects the own player's death (incl. drowned), level-up and instance enter/leave (with corpse-run rule) and fires `LP_PLAYER_DEAD`, `LP_PLAYER_LEVEL_UP`, `LP_INSTANCE_ENTER/LEAVE` for any module | `PLAYER_DEAD`, `WasDrowning`, `PLAYER_ENTERING_WORLD`, `GetCurrentInstance` |
 | `Core/Comm.lua` | Encoding, sending (hold queue, retries), receiving (filters, dispatch to handlers), test loopback, self-test transport | `Send`, `IsRestricted`, `Hold`, `Flush`, `Transmit`, `Receive` |
 | `Core/Version.lua` | HELLO handshake and local version warnings | `SendHello`, `OnHello`, `Check`, `Compare` |
 | `Core/TestMode.lua` | `/lp test` (loopback + fake group), simulation registry (`/lp sim`), `/lp selftest` | `Enable`, `Sim`, `SimEncounter`, `SelfTest` |
 | `Core/Slash.lua` | `/lp` dispatcher; modules register subcommands | `Register`, `Dispatch` |
-| `Modules/Ticker/Ticker.lua` | Creates the Ticker module; detects own events, broadcasts them, receives others' | `OnOwnEvent`, `PLAYER_DEAD`, `WasDrowning`, `PLAYER_ENTERING_WORLD`, `Sanitize`, `OnTick`, `Simulate` |
+| `Modules/Ticker/Ticker.lua` | Creates the Ticker module; turns `LP_PLAYER_*`/`LP_INSTANCE_*` messages into announcements, broadcasts them, receives others' | `OnOwnEvent`, `OnPlayerDead`, `Sanitize`, `OnTick`, `Simulate` |
 | `Modules/Ticker/Stats.lua` | Counters per player: session (memory) and all-time (SavedVariables) | `Record`, `Ranking`, `BuildReport` |
 | `Modules/Ticker/Display.lua` | Turns an event into text, banner queue, encounter hold, local chat line, banner frame | `Format`, `Compose`, `ShowEvent`, `OnEncounterEnd`, `Render` |
 | `Libs/…` | LibStub, CallbackHandler, AceComm (+ ChatThrottleLib), AceSerializer, LibDeflate. Fetched, not committed | — |
@@ -78,7 +79,7 @@ login.
 | 1–5 | `Libs\…` | Everything below uses `LibStub(...)`. LibStub first, CallbackHandler before AceComm (AceComm builds on it) |
 | 6 | `Core\Init.lua` | Defines `ns:RegisterCore` / `ns:NewModule`, which every later file calls |
 | 7 | `Locales\enUS.lua` | Later files capture `local L = ns.L` at load time |
-| 8–15 | `Core\Events` → `DB` → `Log` → `Roster` → `Comm` → `Version` → `TestMode` → `Slash` | Registration order = initialization order. `DB` must initialize before `Log` reads the debug flag and before any module asks for storage |
+| 8–16 | `Core\Events` → `DB` → `Log` → `Roster` → `PlayerEvents` → `Comm` → `Version` → `TestMode` → `Slash` | Registration order = initialization order. `DB` must initialize before `Log` reads the debug flag and before any module asks for storage |
 | 16 | `Modules\Ticker\Ticker.lua` | Creates the module with `ns:NewModule("Ticker")` |
 | 17–18 | `Stats.lua`, `Display.lua` | Attach to that module (`ns:GetModule("Ticker")`), so they must come after it |
 
@@ -109,6 +110,7 @@ diagram.
 sequenceDiagram
     autonumber
     participant GA as WoW client (me)
+    participant PE as PlayerEvents (me)
     participant TA as Ticker (me)
     participant SA as Stats (me)
     participant DA as Display (me)
@@ -120,8 +122,8 @@ sequenceDiagram
     participant SB as Stats (friend)
     participant DF as Display (friend)
 
-    GA->>TA: PLAYER_DEAD via Events dispatcher (SafeCall)
-    TA->>TA: count once (self.dead), WasDrowning(), zone name
+    GA->>PE: PLAYER_DEAD via Events dispatcher (SafeCall)
+    PE->>TA: LP_PLAYER_DEAD after count-once check, WasDrowning(), zone name
     TA->>SA: Record(me, data)
     TA->>DA: ShowEvent(me, data)
     alt boss encounter active (Events:IsEncounterActive)
@@ -159,9 +161,11 @@ sequenceDiagram
 ```
 
 1. The game fires `PLAYER_DEAD`. `Core/Events.lua` is the only frame
-   registered for it and calls `Ticker:PLAYER_DEAD` through `ns.SafeCall`,
-   so one buggy handler can't break the others.
-2. `self.dead` makes sure one death is counted once until
+   registered for it and calls `PlayerEvents:PLAYER_DEAD` through
+   `ns.SafeCall`, so one buggy handler can't break the others.
+   PlayerEvents fires the internal `LP_PLAYER_DEAD` message, which the
+   Ticker (and the Stats module) receive.
+2. `PlayerEvents.dead` makes sure one death is counted once until
    `PLAYER_ALIVE`/`PLAYER_UNGHOST`. `WasDrowning()` looks at the breath
    mirror timer (see Restrictions).
 3. Stats first, so the banner can say "Death #3".
