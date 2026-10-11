@@ -164,6 +164,10 @@ describe("Core", function()
 				LooserPimlDB = true, LooserPimlBanner = true,
 				SLASH_LOOSERPIML1 = true, SLASH_LOOSERPIML2 = true,
 				BNSendGameData = true, -- ChatThrottleLib's hooksecurefunc replaces it (as in the game)
+				-- Post-hooked by Stats via hooksecurefunc, which (in the game too)
+				-- replaces the global with a wrapper that calls the original first.
+				JumpOrAscendStart = true, TakeTaxiNode = true, RepairAllItems = true,
+				TakeInboxMoney = true, AutoLootMailItem = true,
 			}
 			local leaked = {}
 			for key in pairs(mock.env) do

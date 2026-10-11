@@ -173,6 +173,12 @@ function Mock.new(opts)
 	self.zone = "Elwynn Forest"
 	self.instance = { inInstance = false, type = "none", name = "Eastern Kingdoms", id = 0 }
 	self.mirror = {}
+	self.subzone = "Goldshire"
+	self.money = 10000
+	self.swimming, self.flying, self.falling = false, false, false
+	self.spellNames = { [433] = "Food", [430] = "Drink", [8690] = "Hearthstone" }
+	self.taxiNodes = {}
+	self.invoices = {}
 	self.metadata = { Version = opts.version or "@project-version@" }
 	self.loggedIn = false
 	self.errorHandler = function(err)
@@ -682,6 +688,40 @@ function Mock:BuildEnv()
 	}
 	G.GetMirrorTimerProgress = function(timer)
 		return mock.mirror[timer] or 0
+	end
+	G.GetSubZoneText = function()
+		return mock.subzone
+	end
+	G.GetMoney = function()
+		return mock.money
+	end
+	G.IsSwimming = function()
+		return mock.swimming
+	end
+	G.IsFlying = function()
+		return mock.flying
+	end
+	G.IsFalling = function()
+		return mock.falling
+	end
+	G.C_Spell = {
+		GetSpellName = function(spellID)
+			return mock.spellNames[spellID]
+		end,
+	}
+	-- Plain functions the addon may post-hook (hooksecurefunc); calling them
+	-- here just records the call.
+	mock.calls = {}
+	for _, name in ipairs({ "JumpOrAscendStart", "TakeTaxiNode", "RepairAllItems", "TakeInboxMoney", "AutoLootMailItem" }) do
+		G[name] = function(...)
+			mock.calls[#mock.calls + 1] = { name = name, args = { ... } }
+		end
+	end
+	G.TaxiNodeName = function(index)
+		return mock.taxiNodes[index]
+	end
+	G.GetInboxInvoiceInfo = function(index)
+		return mock.invoices[index]
 	end
 
 	env._G = env

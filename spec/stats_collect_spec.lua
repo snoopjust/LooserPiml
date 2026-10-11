@@ -1,0 +1,278 @@
+local H = require("helpers")
+
+local function stats(mock)
+	return mock.ns:GetModule("Stats")
+end
+
+local function events(mock, eventType)
+	local out = {}
+	for _, e in ipairs(stats(mock):GetChar().log) do
+		if not eventType or e.type == eventType then
+			out[#out + 1] = e
+		end
+	end
+	return out
+end
+
+local function last(mock, eventType)
+	local list = events(mock, eventType)
+	return list[#list]
+end
+
+local function today(mock)
+	return stats(mock):GetAggregates().tonight
+end
+
+local function setMoney(mock, amount)
+	mock.money = amount
+	mock:Fire("PLAYER_MONEY")
+end
+
+describe("Stats collectors", function()
+	after_each(H.checkClients)
+
+	describe("core events", function()
+		it("records a death with zone, level, instance and drowned flags", function()
+			local mock = H.client()
+			mock:Fire("MIRROR_TIMER_START", "BREATH", 1000, 180000, -1, 0, "Breath")
+			mock:Advance(3)
+			mock.player.dead = true
+			mock:Fire("PLAYER_DEAD")
+			local e = last(mock, "death")
+			assert.are.equal("Elwynn Forest", e.zone)
+			assert.are.equal(10, e.level)
+			assert.is_false(e.inInstance)
+			assert.is_true(e.data.drowned)
+			assert.is_number(e.t)
+			assert.are.equal(1, today(mock).n.deaths)
+			assert.are.equal(1, today(mock).n.drowned)
+		end)
+
+		it("records level-ups with played time; the level seen from the start is complete", function()
+			local mock = H.client()
+			mock:Advance(600)
+			mock.player.level = 11
+			mock:Fire("PLAYER_LEVEL_UP", 11)
+			local first = last(mock, "level_up")
+			assert.are.equal(11, first.data.level)
+			assert.is_nil(first.data.complete) -- we joined level 10 half-way
+			mock:Advance(1200)
+			mock.player.level = 12
+			mock:Fire("PLAYER_LEVEL_UP", 12)
+			local second = last(mock, "level_up")
+			assert.is_true(second.data.complete)
+			assert.is_true(math.abs(second.data.played - 1200) <= 2, "played " .. tostring(second.data.played))
+			local Model = stats(mock).Model
+			assert.is_true(math.abs(Model.AverageLevelTime(today(mock)) - 1200) <= 2)
+		end)
+
+		it("records instance enter/leave for every instance type, boss kills and wipes", function()
+			local mock = H.client()
+			mock:EnterInstance("Warsong Gulch", "pvp", 489)
+			mock:LeaveInstance()
+			mock:EnterInstance("The Deadmines", "party", 36)
+			mock:Fire("ENCOUNTER_END", 1, "Edwin VanCleef", 1, 5, 1)
+			mock:Fire("ENCOUNTER_END", 2, "Cookie", 1, 5, 0)
+			local instances = events(mock, "instance")
+			assert.are.equal(3, #instances)
+			assert.are.equal("pvp", instances[1].data.itype)
+			assert.are.equal("leave", instances[2].data.action)
+			assert.are.equal(1, today(mock).n.dungeons)
+			assert.are.equal("Edwin VanCleef", events(mock, "encounter")[1].data.name)
+			assert.are.equal(1, today(mock).n.bossKills)
+			assert.are.equal(1, today(mock).n.bossWipes)
+			assert.are.equal(1, #mock.rendered) -- the Ticker announced the dungeon, not the battleground
+		end)
+
+		it("never records simulated bosses or simulated deaths", function()
+			local mock, ns = H.client({ testMode = true })
+			ns.Slash:Dispatch("sim boss")
+			mock:Advance(15)
+			ns.Slash:Dispatch("sim death")
+			ns.Slash:Dispatch("sim levelup")
+			assert.are.equal(0, #events(mock, "encounter"))
+			assert.are.equal(0, #events(mock, "death"))
+			assert.are.equal(0, #events(mock, "level_up"))
+		end)
+
+		it("records quests with their XP and money reward", function()
+			local mock = H.client()
+			mock:Fire("QUEST_TURNED_IN", 176, 450, 1200)
+			setMoney(mock, mock.money + 1200)
+			local quest = last(mock, "quest_done")
+			assert.are.same({ id = 176, xp = 450, money = 1200 }, quest.data)
+			assert.are.equal("quest", last(mock, "money").data.source)
+			assert.are.equal(1, today(mock).n.quests)
+		end)
+	end)
+
+	describe("money sources", function()
+		it("classifies by hint first, then by the open window", function()
+			local classify = stats(H.client()).ClassifyMoney
+			assert.are.equal("repair", classify(-100, "repair", { merchant = true }))
+			assert.are.equal("vendor_sell", classify(100, nil, { merchant = true }))
+			assert.are.equal("vendor_buy", classify(-100, nil, { merchant = true }))
+			assert.are.equal("loot", classify(100, nil, { loot = true, merchant = true }))
+			assert.are.equal("trainer", classify(-100, nil, { trainer = true }))
+			assert.are.equal("flight", classify(-100, nil, { taxi = true }))
+			assert.are.equal("other", classify(100, nil, {}))
+		end)
+
+		it("tracks merchant, repair, loot (with grace after closing), mail and AH mail", function()
+			local mock, ns = H.client()
+			local money = mock.money
+			mock:Fire("MERCHANT_SHOW")
+			money = money + 500
+			setMoney(mock, money)
+			money = money - 200
+			setMoney(mock, money)
+			mock.env.RepairAllItems(false)
+			money = money - 300
+			setMoney(mock, money)
+			mock:Fire("MERCHANT_CLOSED")
+			mock:Advance(3)
+			money = money + 5
+			setMoney(mock, money)
+
+			mock:Fire("LOOT_OPENED", true, false)
+			money = money + 100
+			setMoney(mock, money)
+			mock:Fire("LOOT_CLOSED")
+			money = money + 50 -- arrives just after the window closed
+			setMoney(mock, money)
+
+			mock:Fire("MAIL_SHOW")
+			mock.invoices[1] = "seller"
+			mock.env.TakeInboxMoney(1)
+			money = money + 10000
+			setMoney(mock, money)
+			mock.env.TakeInboxMoney(2)
+			money = money + 7
+			setMoney(mock, money)
+			mock:Fire("MAIL_CLOSED")
+
+			local sources = {}
+			for _, e in ipairs(events(mock, "money")) do
+				sources[#sources + 1] = e.data.source .. ":" .. e.data.delta
+			end
+			assert.are.same({
+				"vendor_sell:500", "vendor_buy:-200", "repair:-300", "other:5",
+				"loot:100", "loot:50", "ah_mail:10000", "mail:7",
+			}, sources)
+			local agg = today(mock)
+			assert.are.equal(150, agg.n.moneyLooted)
+			assert.are.equal(300, agg.moneyOut.repair)
+			assert.is_true(#mock.calls >= 3) -- Blizzard's functions still ran (post-hooks)
+			assert.are.equal(ns, mock.ns)
+		end)
+	end)
+
+	describe("travel", function()
+		it("records a zone/subzone once, flights with destination, and the hearthstone", function()
+			local mock = H.client()
+			local first = #events(mock, "travel")
+			assert.is_true(first >= 1) -- the login zone counts as visited
+			mock.subzone = "Lion's Pride Inn"
+			mock:Fire("ZONE_CHANGED")
+			mock.subzone = "Goldshire"
+			mock:Fire("ZONE_CHANGED")
+			mock.subzone = "Lion's Pride Inn"
+			mock:Fire("ZONE_CHANGED")
+			assert.are.equal(first + 1, #events(mock, "travel"))
+			assert.are.equal("Lion's Pride Inn", last(mock, "travel").data.subzone)
+
+			mock.taxiNodes[3] = "Stormwind, Elwynn"
+			mock:Fire("TAXIMAP_OPENED")
+			mock.env.TakeTaxiNode(3)
+			setMoney(mock, mock.money - 50)
+			assert.are.equal("Stormwind, Elwynn", last(mock, "travel").data.to)
+			assert.are.equal("flight", last(mock, "money").data.source)
+
+			mock:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 8690)
+			assert.are.equal("hearth", last(mock, "travel").data.kind)
+			assert.are.equal(1, today(mock).n.hearths)
+		end)
+	end)
+
+	describe("fun counters", function()
+		it("counts ground jumps only, and food/drink by localized spell name", function()
+			local mock = H.client()
+			local jump = mock.env.JumpOrAscendStart
+			jump()
+			jump()
+			mock.swimming = true
+			jump()
+			mock.swimming = false
+			mock.falling = true
+			jump()
+			mock.falling = false
+			assert.are.equal(2, today(mock).n.jumps)
+
+			mock.spellNames[1131] = "Food" -- a different food item, same spell name
+			mock:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-2", 1131)
+			mock:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3", 430)
+			mock:Fire("UNIT_SPELLCAST_SUCCEEDED", "party1", "Cast-4", 433) -- not us
+			mock:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-5", H.Mock.Secret())
+			assert.are.equal(1, today(mock).n.food)
+			assert.are.equal(1, today(mock).n.drink)
+			assert.are.equal(0, #events(mock, "fun")) -- counters, not log entries
+		end)
+	end)
+
+	describe("group time", function()
+		it("counts time grouped, in total and per friend who runs LooserPiml", function()
+			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" }, { name = "Bob", class = "MAGE" } } })
+			ns.Version.known["Max-TestRealm"] = { version = "v0.2.0", protocol = 1 }
+			mock:Advance(130)
+			local agg = today(mock)
+			assert.is_true(agg.n.groupSeconds >= 120, tostring(agg.n.groupSeconds))
+			assert.is_true(agg.groupWith["Max-TestRealm"] >= 120)
+			assert.is_nil(agg.groupWith["Bob-TestRealm"]) -- no LooserPiml
+		end)
+	end)
+
+	describe("settings and storage", function()
+		it("records nothing while 'collect stats' is off", function()
+			local mock = H.client()
+			local before = #events(mock)
+			stats(mock).db.collect = false
+			mock:Fire("PLAYER_DEAD")
+			mock.env.JumpOrAscendStart()
+			mock:Fire("QUEST_TURNED_IN", 1, 10, 10)
+			assert.are.equal(before, #events(mock))
+			assert.is_nil(today(mock).n.jumps)
+		end)
+
+		it("compacts old events into daily buckets on login", function()
+			local now = 1760000000
+			local saved = {
+				schemaVersion = 1,
+				modules = { Stats = { chars = { ["Me-TestRealm"] = {
+					log = {
+						{ t = now - 40 * 86400, type = "death", data = {} },
+						{ t = now - 3600, type = "death", data = {} },
+					},
+					buckets = {},
+				} } } },
+			}
+			local mock = H.client({ savedVariables = saved })
+			local char = stats(mock):GetChar()
+			local deaths = 0
+			for _, e in ipairs(char.log) do
+				if e.type == "death" then
+					deaths = deaths + 1
+				end
+			end
+			assert.are.equal(1, deaths)
+			assert.are.equal(2, stats(mock):GetAggregates().all.n.deaths)
+		end)
+
+		it("keeps each character's log separate", function()
+			local saved = { schemaVersion = 1, modules = { Stats = { chars = {
+				["Alt-TestRealm"] = { log = { { t = 1, type = "death", data = {} } }, buckets = {} },
+			} } } }
+			local mock = H.client({ savedVariables = saved })
+			assert.are.equal(0, #events(mock, "death"))
+		end)
+	end)
+end)
