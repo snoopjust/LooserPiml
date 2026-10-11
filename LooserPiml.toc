@@ -40,3 +40,4 @@ Modules\Stats\Money.lua
 Modules\Stats\Loot.lua
 Modules\Stats\PvP.lua
 Modules\Stats\Sync.lua
+Modules\Stats\Leaderboard.lua
