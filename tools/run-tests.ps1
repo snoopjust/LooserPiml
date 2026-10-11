@@ -12,6 +12,9 @@
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tools\run-tests.ps1
 #>
+# PositionalBinding off: positional arguments (spec files) go to busted,
+# not into -Prefix.
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [string]$Prefix = (Join-Path $env:LOCALAPPDATA 'LooserPiml\lua51'),
     [Parameter(ValueFromRemainingArguments = $true)]
