@@ -170,6 +170,10 @@ describe("Core", function()
 				TakeInboxMoney = true, AutoLootMailItem = true,
 				-- Named frames created by LibDBIcon (tooltip, our minimap button)
 				LibDBIconTooltip = true, LibDBIcon10_LooserPiml = true,
+				-- Main window (named for ESC/UISpecialFrames) and the Addon Compartment
+				-- callbacks the game calls by the names in the .toc
+				LooserPimlMainFrame = true, LooserPiml_OnAddonCompartmentClick = true,
+				LooserPiml_OnAddonCompartmentEnter = true, LooserPiml_OnAddonCompartmentLeave = true,
 			}
 			local leaked = {}
 			for key in pairs(mock.env) do

@@ -167,10 +167,14 @@ function FrameMethods:Click(button) local fn = self.scripts.OnClick; if fn then 
 -- Every widget object: frames, textures, font strings, animations. Unknown
 -- methods are harmless no-ops; Create* methods create child objects.
 local function makeObject(mock, kind, name, parent)
-	return setmetatable({
-		mock = mock, kind = kind, name = name, parent = parent,
+	local object = {
+		mock = mock, kind = kind, name = name, parent = parent, children = {},
 		events = {}, scripts = {}, shown = true, width = 100, height = 100, alpha = 1, points = {},
-	}, {
+	}
+	if parent and parent.children then
+		parent.children[#parent.children + 1] = object
+	end
+	return setmetatable(object, {
 		__index = function(_, key)
 			if FrameMethods[key] then
 				return FrameMethods[key]
@@ -182,7 +186,13 @@ local function makeObject(mock, kind, name, parent)
 					return child
 				end
 			end
-			return function() end
+			-- Widget methods are CamelCase; unknown ones are harmless no-ops.
+			-- Unknown lowercase keys are data fields and read as nil, like on
+			-- real widgets (libraries test them, e.g. button.minimapPos).
+			if type(key) == "string" and key:find("^%u") then
+				return function() end
+			end
+			return nil
 		end,
 	})
 end

@@ -144,6 +144,31 @@ function H.group(specs)
 	return clients, net
 end
 
+-- All texts (SetText) of a widget tree that are currently shown, colors
+-- stripped, in creation order. Hidden subtrees are skipped.
+function H.texts(object, out)
+	out = out or {}
+	if not object or object.shown == false then
+		return out
+	end
+	if object.text_ and object.text_ ~= "" then
+		out[#out + 1] = H.stripColors(tostring(object.text_))
+	end
+	for _, child in ipairs(object.children or {}) do
+		H.texts(child, out)
+	end
+	return out
+end
+
+function H.hasText(object, fragment)
+	for _, text in ipairs(H.texts(object)) do
+		if text:find(fragment, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
 -- Removes color codes and texture escapes, trims, collapses double spaces.
 function H.stripColors(text)
 	text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", "")

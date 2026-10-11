@@ -24,6 +24,8 @@ DB.defaults = {
 	debug = false,
 	moduleEnabled = {},
 	modules = {},
+	window = {},                -- main window position
+	minimap = { hide = false }, -- LibDBIcon settings (hide, minimapPos)
 }
 
 -- DB.migrations[n] upgrades a database from schema n-1 to n. Add a new entry

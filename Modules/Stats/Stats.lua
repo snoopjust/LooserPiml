@@ -32,6 +32,7 @@ Stats.defaults = {
 function Stats:OnInitialize()
 	self.db = ns.DB:GetModuleDB(self.name, self.defaults)
 	self:RegisterOptions()
+	self:RegisterUI() -- LeaderboardTab.lua
 end
 
 function Stats:RegisterOptions()

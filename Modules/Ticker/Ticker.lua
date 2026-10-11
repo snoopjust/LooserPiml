@@ -54,11 +54,6 @@ end
 
 function Ticker:OnInitialize()
 	self.db = ns.DB:GetModuleDB(self.name, self.defaults)
-	ns.Slash:Register("stats", function()
-		if self:IsEnabled() then
-			self.Stats:PrintReport()
-		end
-	end, "", L.HELP_STATS)
 	ns.Slash:Register("sound", function(arg)
 		arg = arg:lower()
 		if arg == "on" or arg == "off" then
@@ -156,6 +151,10 @@ function Ticker:OnEnable()
 	end)
 	ns.Comm:RegisterHandler(self, self.MSG, self.OnTick)
 	ns.TestMode:RegisterSim(self, { "death", "drown", "levelup", "enter", "leave" }, self.Simulate)
+	-- "/lp stats chat" (Window owns "/lp stats" and asks for the text ranking)
+	ns.Events:Register(self, "LP_PRINT_STATS", function()
+		self.Stats:PrintReport()
+	end)
 end
 
 ----------------------------------------------------------------------

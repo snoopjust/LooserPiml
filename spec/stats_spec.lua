@@ -46,7 +46,7 @@ describe("Ticker stats", function()
 			Stats:Record("Max-TestRealm", { k = "death", c = "WARRIOR" })
 		end
 		Stats:Record("Lena-TestRealm", { k = "death", c = "MAGE" })
-		ns.Slash:Dispatch("stats")
+		ns.Slash:Dispatch("stats chat")
 		local plain = {}
 		for i, line in ipairs(mock.chat) do
 			plain[i] = H.stripColors(line)
@@ -57,7 +57,7 @@ describe("Ticker stats", function()
 	end)
 
 	it("says so when nobody died", function()
-		ns.Slash:Dispatch("stats")
+		ns.Slash:Dispatch("stats chat")
 		assert.is_true(mock:ChatContains("Nobody died this session"))
 	end)
 
