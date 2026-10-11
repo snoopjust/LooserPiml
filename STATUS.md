@@ -18,6 +18,7 @@ _Last updated: 2026-10-11 (initial scaffold, Core + Ticker MVP)_
 - **Tests**: 78 busted specs, all green, running the real addon + real libraries under Lua 5.1, including two clients talking to each other.
 - **Tooling**: `tools/fetch-libs.ps1`, `tools/link-addon.ps1` (junction created: `<WoW>\_classic_beta_\Interface\AddOns\LooserPiml` → repo), `tools/setup-test-env.ps1`, `tools/run-tests.ps1`.
 - **Distribution**: `.pkgmeta` (libs as git externals, pinned), GitHub Actions `tests.yml` (push/PR) and `release.yml` (tag `v*` → tests → BigWigsMods/packager → GitHub release + `release.json`).
+- **Published** (2026-10-11): public repo https://github.com/snoopjust/LooserPiml. Release **v0.1.0** built by CI (tests 78/78 green on Ubuntu, packager job green): `LooserPiml-v0.1.0-forever.zip` with all libraries embedded, `## Version: v0.1.0`, no dev files; `release.json` flavor `forever`, interface 16001. Known cosmetic issue: LibDeflate's docs/examples (~170 KB) are included in the zip.
 - **Docs**: README (friends' install via WowUp + manual), ARCHITECTURE.md (files, load order, end-to-end event diagram, restriction handling), CLAUDE.md (conventions), TESTING.md (solo + two-client checklists, all `TODO(verify in-game)` items), CHANGELOG.
 
 ## Safety rules
@@ -65,7 +66,7 @@ Every feature is checked against these:
 ## Next steps
 
 1. Run TESTING.md sections 2 and 3, and fill in the TODO table (paste the `/lp selftest` APIs line here).
-2. Create the GitHub repo, push, tag `v0.1.0`, check the release zip + `release.json`, install via WowUp on a friend's PC.
+2. Install v0.1.0 via WowUp ("Install from URL" → https://github.com/snoopjust/LooserPiml) on a friend's PC to confirm WowUp picks the `forever` flavor (TESTING.md TODO #22).
 3. Next modules, all built on Core (Comm handlers, `DB:GetModuleDB`, Roster, TestMode sims, Slash):
    - **Group Inventory**: each client scans its own bags/bank (C_Container) on change, debounced, and sends a compact diff with BULK priority. Watch the addon-message budget; only send on change, never on a timer.
    - **Profession Directory**: each client shares its own professions and known recipes once per session or when they change. "Who can craft X?" lookup. Read-only, no automation of crafting.
