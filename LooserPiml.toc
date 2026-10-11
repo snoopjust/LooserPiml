@@ -17,6 +17,7 @@ Libs\AceSerializer-3.0\AceSerializer-3.0.xml
 Libs\LibDeflate\LibDeflate.lua
 
 Core\Init.lua
+Core\Util.lua
 Locales\enUS.lua
 Core\Events.lua
 Core\DB.lua
