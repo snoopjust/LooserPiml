@@ -1,0 +1,10 @@
+return {
+	_all = {
+		lpath = "./spec/support/?.lua",
+	},
+	default = {
+		ROOT = { "spec" },
+		pattern = "_spec",
+		output = "plainTerminal",
+	},
+}

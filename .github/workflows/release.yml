@@ -1,0 +1,46 @@
+# Pushing a tag like v0.1.0 runs the tests, then builds LooserPiml-v0.1.0.zip
+# (libraries embedded) with BigWigsMods/packager and attaches it to a GitHub
+# release. WowUp ("Install from URL") picks it up from there, using the
+# release.json the packager generates (flavor "forever" for Interface 16xxx).
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: leafo/gh-actions-lua@v13
+        with:
+          luaVersion: "5.1.5"
+
+      - uses: leafo/gh-actions-luarocks@v6
+
+      - name: Install busted
+        run: luarocks install busted
+
+      - name: Fetch libraries
+        shell: pwsh
+        run: ./tools/fetch-libs.ps1
+
+      - name: Run tests
+        run: busted
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub release
+    env:
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the packager builds the changelog/version from git history
+
+      - uses: BigWigsMods/packager@v2

@@ -1,0 +1,16 @@
+# Embedded libraries: fetched by tools/fetch-libs.ps1 (dev) or .pkgmeta externals (release)
+/Libs/
+
+# Packager output
+/.release/
+
+# Local Claude Code settings
+/.claude/settings.local.json
+
+# Editor / OS noise
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.swp
+luacov.*.out

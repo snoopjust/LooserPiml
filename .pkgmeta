@@ -1,0 +1,41 @@
+# BigWigsMods/packager configuration.
+# Libraries are embedded into the release zip. Keep the tags in sync with
+# tools/fetch-libs.ps1 (used for local development and tests).
+
+package-as: LooserPiml
+
+enable-nolib-creation: no
+
+externals:
+  Libs/LibStub:
+    url: https://github.com/WoWUIDev/Ace3
+    tag: Release-r1403
+    path: LibStub
+  Libs/CallbackHandler-1.0:
+    url: https://github.com/WoWUIDev/Ace3
+    tag: Release-r1403
+    path: CallbackHandler-1.0
+  Libs/AceComm-3.0:
+    url: https://github.com/WoWUIDev/Ace3
+    tag: Release-r1403
+    path: AceComm-3.0
+  Libs/AceSerializer-3.0:
+    url: https://github.com/WoWUIDev/Ace3
+    tag: Release-r1403
+    path: AceSerializer-3.0
+  Libs/LibDeflate:
+    url: https://github.com/SafeteeWoW/LibDeflate
+    tag: 1.0.2-release
+
+ignore:
+  - spec
+  - tools
+  - .busted
+  - .claude
+  - TESTING.md
+  - STATUS.md
+  - CLAUDE.md
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
