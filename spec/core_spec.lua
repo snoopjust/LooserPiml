@@ -168,6 +168,8 @@ describe("Core", function()
 				-- replaces the global with a wrapper that calls the original first.
 				JumpOrAscendStart = true, TakeTaxiNode = true, RepairAllItems = true,
 				TakeInboxMoney = true, AutoLootMailItem = true,
+				-- Named frames created by LibDBIcon (tooltip, our minimap button)
+				LibDBIconTooltip = true, LibDBIcon10_LooserPiml = true,
 			}
 			local leaked = {}
 			for key in pairs(mock.env) do

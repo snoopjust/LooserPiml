@@ -38,6 +38,21 @@ $sources = @(
         Dirs  = [ordered]@{ '.' = 'LibDeflate' }
         # The repo root also holds tests and docs; only ship what the addon loads.
         Files = @('LibDeflate.lua', 'lib.xml', 'LICENSE.txt')
+    },
+    @{
+        Repo  = 'https://github.com/tekkub/libdatabroker-1-1'
+        Tag   = 'v1.1.4'
+        Dirs  = [ordered]@{ '.' = 'LibDataBroker-1.1' }
+        Files = @('LibDataBroker-1.1.lua')
+    },
+    @{
+        # LibDBIcon lives in the WoWAce Subversion repository. SVN serves
+        # files over plain HTTPS, so no svn client is needed for local dev
+        # (the release packager does a real svn checkout of the same tag).
+        Url   = 'https://repos.wowace.com/wow/libdbicon-1-0/tags/v12.1.1/LibDBIcon-1.0'
+        Tag   = 'v12.1.1'
+        Dirs  = [ordered]@{ '.' = 'LibDBIcon-1.0' }
+        Files = @('LibDBIcon-1.0.lua', 'lib.xml')
     }
 )
 
@@ -62,9 +77,18 @@ try {
     foreach ($src in $sources) {
         $i++
         $checkout = Join-Path $tmp "src$i"
-        Write-Host "Cloning $($src.Repo) @ $($src.Tag)"
-        git -c advice.detachedHead=false clone --quiet --depth 1 --branch $src.Tag $src.Repo $checkout
-        if ($LASTEXITCODE -ne 0) { throw "git clone failed for $($src.Repo)" }
+        if ($src.Url) {
+            Write-Host "Downloading $($src.Url)"
+            New-Item -ItemType Directory -Path $checkout | Out-Null
+            foreach ($file in $src.Files) {
+                Invoke-WebRequest -UseBasicParsing -Uri "$($src.Url)/$file" -OutFile (Join-Path $checkout $file)
+            }
+        }
+        else {
+            Write-Host "Cloning $($src.Repo) @ $($src.Tag)"
+            git -c advice.detachedHead=false clone --quiet --depth 1 --branch $src.Tag $src.Repo $checkout
+            if ($LASTEXITCODE -ne 0) { throw "git clone failed for $($src.Repo)" }
+        }
 
         foreach ($entry in $src.Dirs.GetEnumerator()) {
             $from = if ($entry.Key -eq '.') { $checkout } else { Join-Path $checkout $entry.Key }

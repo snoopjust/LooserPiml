@@ -61,7 +61,7 @@ removable.
 | `Modules/Stats/PvP.lua` | Duels (own only, opponent runs LooserPiml?), battleground joined/finished/deserted with own scoreboard row after the match, honor snapshots | `ParseDuel`, `OnPvPMatchComplete`, `ReadOwnScore` |
 | `Modules/Stats/Sync.lua` | Broadcasts own aggregates (login, group join, after changes; ≤ 1 per 30 s; off with "share my stats"), caches friends' aggregates with last-seen, staleness of tonight/week, participants for the leaderboard, sample friends in test mode | `RequestBroadcast`, `OnStatsMessage`, `GetParticipants`, `FillSampleFriends` |
 | `Modules/Stats/Leaderboard.lua` | Pure data provider: Hall of Fame awards (Death King, Fish Food, Gold Hoarder, Speedrunner; earlier achiever wins ties) and ranking rows with bar fractions | `Award`, `HallOfFame`, `Ranking`, `Format` |
-| `Libs/…` | LibStub, CallbackHandler, AceComm (+ ChatThrottleLib), AceSerializer, LibDeflate. Fetched, not committed | — |
+| `Libs/…` | LibStub, CallbackHandler, AceComm (+ ChatThrottleLib), AceSerializer, LibDeflate, LibDataBroker, LibDBIcon (minimap button). Fetched, not committed | — |
 
 ### Development only (not in the release zip)
 
@@ -85,7 +85,7 @@ login.
 
 | # | File | Why it sits here |
 |---|---|---|
-| 1–5 | `Libs\…` | Everything below uses `LibStub(...)`. LibStub first, CallbackHandler before AceComm (AceComm builds on it) |
+| 1–7 | `Libs\…` | Everything below uses `LibStub(...)`. LibStub first, CallbackHandler before AceComm (AceComm builds on it), LibDataBroker before LibDBIcon |
 | 6 | `Core\Init.lua` | Defines `ns:RegisterCore` / `ns:NewModule`, which every later file calls |
 | 7 | `Locales\enUS.lua` | Later files capture `local L = ns.L` at load time |
 | 8–16 | `Core\Events` → `DB` → `Log` → `Roster` → `PlayerEvents` → `Comm` → `Version` → `TestMode` → `Slash` | Registration order = initialization order. `DB` must initialize before `Log` reads the debug flag and before any module asks for storage |

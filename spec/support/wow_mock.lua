@@ -102,19 +102,6 @@ end
 -- Frames
 ----------------------------------------------------------------------
 
-local function newStub()
-	return setmetatable({}, {
-		__index = function(_, key)
-			if type(key) == "string" and key:find("^Create") then
-				return function()
-					return newStub()
-				end
-			end
-			return function() end
-		end,
-	})
-end
-
 local FrameMethods = {}
 
 function FrameMethods:RegisterEvent(event)
@@ -133,6 +120,67 @@ function FrameMethods:Hide() self.shown = false end
 function FrameMethods:IsShown() return self.shown end
 function FrameMethods:SetText(text) self.text_ = text end
 function FrameMethods:GetText() return self.text_ end
+function FrameMethods:GetParent() return self.parent end
+function FrameMethods:GetName() return self.name end
+function FrameMethods:GetObjectType() return self.kind end
+function FrameMethods:SetSize(w, h) self.width, self.height = w, h end
+function FrameMethods:SetWidth(w) self.width = w end
+function FrameMethods:SetHeight(h) self.height = h end
+function FrameMethods:GetWidth() return self.width end
+function FrameMethods:GetHeight() return self.height end
+function FrameMethods:GetSize() return self.width, self.height end
+function FrameMethods:GetCenter() return 0, 0 end
+function FrameMethods:GetEffectiveScale() return 1 end
+function FrameMethods:GetScale() return 1 end
+function FrameMethods:GetVertexColor() return 1, 1, 1, 1 end
+function FrameMethods:SetAlpha(a) self.alpha = a end
+function FrameMethods:GetAlpha() return self.alpha end
+function FrameMethods:IsVisible() return self.shown end
+function FrameMethods:IsMouseOver() return false end
+function FrameMethods:SetPoint(...) self.points[#self.points + 1] = { ... } end
+function FrameMethods:ClearAllPoints() self.points = {} end
+function FrameMethods:GetPoint(i) local p = self.points[i or 1]; if p then return unpack(p) end end
+function FrameMethods:GetNumPoints() return #self.points end
+function FrameMethods:SetMovable(v) self.movable = v end
+function FrameMethods:IsMovable() return self.movable end
+function FrameMethods:HookScript(script, fn)
+	local previous = self.scripts[script]
+	self.scripts[script] = function(...)
+		if previous then previous(...) end
+		return fn(...)
+	end
+end
+-- Tooltip-like recording (GameTooltip, LibDBIcon's tooltip, ...)
+function FrameMethods:ClearLines() self.lines = {} end
+function FrameMethods:AddLine(text) self.lines = self.lines or {}; self.lines[#self.lines + 1] = text end
+function FrameMethods:AddDoubleLine(left, right) self:AddLine(tostring(left) .. " | " .. tostring(right)) end
+function FrameMethods:NumLines() return self.lines and #self.lines or 0 end
+-- Test helper: simulate a click (OnClick script with the mouse button)
+function FrameMethods:Click(button) local fn = self.scripts.OnClick; if fn then fn(self, button or "LeftButton", false) end end
+
+-- Every widget object: frames, textures, font strings, animations. Unknown
+-- methods are harmless no-ops; Create* methods create child objects.
+local function makeObject(mock, kind, name, parent)
+	return setmetatable({
+		mock = mock, kind = kind, name = name, parent = parent,
+		events = {}, scripts = {}, shown = true, width = 100, height = 100, alpha = 1, points = {},
+	}, {
+		__index = function(_, key)
+			if FrameMethods[key] then
+				return FrameMethods[key]
+			end
+			if type(key) == "string" and key:find("^Create") then
+				return function(self, childKind, childName)
+					local child = makeObject(mock, key:sub(7), childName, self)
+					child.childKind = childKind
+					return child
+				end
+			end
+			return function() end
+		end,
+	})
+end
+Mock.makeObject = makeObject
 
 ----------------------------------------------------------------------
 -- Client
@@ -286,20 +334,8 @@ function Mock:Fire(event, ...)
 	end
 end
 
-function Mock:CreateFrame(_, name)
-	local frame = setmetatable({ mock = self, events = {}, scripts = {}, shown = true }, {
-		__index = function(_, key)
-			if FrameMethods[key] then
-				return FrameMethods[key]
-			end
-			if type(key) == "string" and key:find("^Create") then
-				return function()
-					return newStub()
-				end
-			end
-			return function() end
-		end,
-	})
+function Mock:CreateFrame(frameType, name, parent)
+	local frame = makeObject(self, frameType, name, parent)
 	self.frames[#self.frames + 1] = frame
 	if name then
 		self.env[name] = frame
@@ -493,7 +529,15 @@ function Mock:BuildEnv()
 	G.CreateFrame = function(frameType, name, parent)
 		return mock:CreateFrame(frameType, name, parent)
 	end
-	G.UIParent = newStub()
+	G.UIParent = makeObject(mock, "Frame", "UIParent")
+	G.UIParent:SetSize(1920, 1080)
+	G.Minimap = makeObject(mock, "Frame", "Minimap", G.UIParent)
+	G.Minimap:SetSize(140, 140)
+	G.GameTooltip = makeObject(mock, "GameTooltip", "GameTooltip", G.UIParent)
+	G.GetCursorPosition = function()
+		return 0, 0
+	end
+	G.UISpecialFrames = {}
 	G.DEFAULT_CHAT_FRAME = {
 		AddMessage = function(_, text)
 			mock.chat[#mock.chat + 1] = text

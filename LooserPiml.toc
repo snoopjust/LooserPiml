@@ -8,13 +8,15 @@
 ## X-Website: https://github.com/snoopjust/LooserPiml
 ## X-License: MIT
 
-# Interface 16001 = WoW: Forever beta (1.60.1). TODO(verify in-game): /dump select(4, GetBuildInfo())
+# Interface 16001 = WoW: Forever beta (1.60.1), confirmed in-game 2026-10-11. Launch value: TODO(verify in-game)
 
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
 Libs\AceComm-3.0\AceComm-3.0.xml
 Libs\AceSerializer-3.0\AceSerializer-3.0.xml
 Libs\LibDeflate\LibDeflate.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\lib.xml
 
 Core\Init.lua
 Core\Util.lua
