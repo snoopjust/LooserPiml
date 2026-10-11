@@ -406,9 +406,13 @@ function Mock:BuildEnv()
 		return table.concat({ ... }, delimiter)
 	end
 	G.date = os.date
-	G.time = function()
+	G.time = function(dateTable)
+		if dateTable then
+			return os.time(dateTable) -- like WoW: local time table -> timestamp
+		end
 		return mock.epoch + math.floor(mock.now - mock.startNow)
 	end
+	G.GetServerTime = G.time
 	G.GetTime = function()
 		return mock.now
 	end

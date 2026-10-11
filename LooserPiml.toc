@@ -32,3 +32,6 @@ Core\Slash.lua
 Modules\Ticker\Ticker.lua
 Modules\Ticker\Stats.lua
 Modules\Ticker\Display.lua
+
+Modules\Stats\Stats.lua
+Modules\Stats\Model.lua
