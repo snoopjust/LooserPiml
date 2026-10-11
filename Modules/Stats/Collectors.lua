@@ -56,7 +56,7 @@ function Stats:EnableCollectors()
 	self:PostHook("JumpOrAscendStart", function()
 		self:OnJump()
 	end)
-	for _, enable in ipairs({ "EnableMoney", "EnableLoot", "EnablePvP" }) do
+	for _, enable in ipairs({ "EnableMoney", "EnableLoot", "EnablePvP", "EnableSync" }) do
 		if self[enable] then
 			self[enable](self)
 		end

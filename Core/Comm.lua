@@ -148,19 +148,33 @@ end
 -- Why our own queue on top of ChatThrottleLib's: CTL only retries the
 -- AddonMessageThrottle result. Any other refusal (AddOnMessageLockdown during
 -- a boss, NotInGroup, ...) is reported once and the message is dropped.
-function Comm:Send(msgType, data, prio)
+-- replaceKey (optional): while held, a newer message with the same key
+-- replaces the older one (e.g. stats snapshots: only the latest matters).
+function Comm:Send(msgType, data, prio, replaceKey)
 	local entry = {
 		t = msgType,
 		d = data,
 		id = nextId(),
 		prio = prio or "NORMAL",
+		key = replaceKey,
 		queuedAt = time(),
 		attempts = 0,
 	}
 	if self:IsRestricted() then
 		return self:Hold(entry)
 	end
+	if replaceKey then
+		self:DropHeld(replaceKey) -- superseded: an older snapshot must not arrive after this one
+	end
 	return self:Transmit(entry)
+end
+
+function Comm:DropHeld(key)
+	for i = #self.queue, 1, -1 do
+		if self.queue[i].key == key then
+			table.remove(self.queue, i)
+		end
+	end
 end
 
 local function onChunkSent(entry, _, _, didSend)
@@ -202,12 +216,26 @@ function Comm:Transmit(entry)
 	entry.attempts = entry.attempts + 1
 	entry.failed = false
 	self:SendCommMessage(self.PREFIX, text, channel, nil, entry.prio, onChunkSent, entry)
+	-- Lets senders rate-limit by actual transmissions, including messages
+	-- that were held and flushed later.
+	ns.Events:Fire("LP_COMM_SENT", entry.t)
 	return "sent"
 end
 
 function Comm:Hold(entry, atFront)
 	local _, reason = self:IsRestricted()
 	entry.late = entry.late or reason
+	if entry.key then
+		for i = #self.queue, 1, -1 do
+			local other = self.queue[i]
+			if other.key == entry.key then
+				if other.id > entry.id then
+					return "queued" -- a newer version is already waiting (failed retry of an old one)
+				end
+				table.remove(self.queue, i)
+			end
+		end
+	end
 	if atFront then
 		table.insert(self.queue, 1, entry)
 	else

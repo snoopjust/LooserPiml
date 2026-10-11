@@ -167,6 +167,7 @@ describe("Comm", function()
 
 		it("gives up after MAX_ATTEMPTS refused sends", function()
 			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			ns:GetModule("Stats").db.share = false -- only this test's own traffic
 			mock.refuseSends = true
 			ns.Comm:Send("TEST", {})
 			mock:Advance(ns.Comm.RETRY_INTERVAL * (ns.Comm.MAX_ATTEMPTS + 2))
@@ -177,6 +178,7 @@ describe("Comm", function()
 
 		it("drops held messages that became stale", function()
 			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			ns:GetModule("Stats").db.share = false -- only this test's own traffic
 			local before = #mock.sent
 			mock.lockdown = true
 			ns.Comm:Send("TEST", {})
@@ -186,6 +188,22 @@ describe("Comm", function()
 			assert.are.equal(0, #ns.Comm.queue)
 			mock:Advance(1)
 			assert.are.equal(before, #mock.sent)
+		end)
+
+		it("replaces a held message with a newer one that has the same key", function()
+			local _, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			ns.Events:SetSimulatedEncounter(true, "Boss")
+			ns.Comm:Send("TEST", { n = 1 }, "BULK", "snap")
+			ns.Comm:Send("OTHER", { n = 2 })
+			ns.Comm:Send("TEST", { n = 3 }, "BULK", "snap")
+			assert.are.equal(2, #ns.Comm.queue)
+			assert.are.equal("OTHER", ns.Comm.queue[1].t)
+			assert.are.equal(3, ns.Comm.queue[2].d.n)
+			-- a failed retry of an older snapshot must not replace the newer one
+			local old = { t = "TEST", d = { n = 0 }, id = 0, key = "snap", attempts = 1, queuedAt = 0 }
+			ns.Comm:Hold(old, true)
+			assert.are.equal(2, #ns.Comm.queue)
+			assert.are.equal(3, ns.Comm.queue[2].d.n)
 		end)
 
 		it("caps the queue at MAX_QUEUE, dropping the oldest", function()

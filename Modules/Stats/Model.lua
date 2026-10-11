@@ -356,8 +356,29 @@ function Model.AverageLevelTime(agg)
 end
 
 ----------------------------------------------------------------------
--- Aggregates received from other clients
+-- Aggregates sent to / received from other clients
 ----------------------------------------------------------------------
+
+-- Counters whose "when" is needed by others (award tie-breaks). Sending
+-- every timestamp would roughly double the message size for nothing.
+Model.TIE_KEYS = { "deaths", "drowned", "moneyLooted", "levelTime", "levelUps", "quests" }
+
+-- Copy of an aggregate for the network: timestamps only for TIE_KEYS.
+function Model.ForSync(agg)
+	local out = {
+		n = agg.n,
+		moneyIn = agg.moneyIn,
+		moneyOut = agg.moneyOut,
+		groupWith = agg.groupWith,
+		last = agg.last,
+		maxLevel = agg.maxLevel,
+		at = {},
+	}
+	for _, key in ipairs(Model.TIE_KEYS) do
+		out.at[key] = agg.at[key]
+	end
+	return out
+end
 
 local MAX_NUMBER = 1e13 -- far above any real copper or second count
 local MAX_KEYS = 100

@@ -185,6 +185,7 @@ function Mock.new(opts)
 	self.professions = { indices = { 1, 2 }, names = { "Mining", "Herbalism" } }
 	self.faction = "Alliance"
 	self.scores = {}
+	self.friendList = {} -- C_FriendList.GetFriendInfo(name) results
 	self.honor, self.honorLevel = 100, 1
 	self.metadata = { Version = opts.version or "@project-version@" }
 	self.loggedIn = false
@@ -758,6 +759,11 @@ function Mock:BuildEnv()
 	G.C_PvP = {
 		GetScoreInfo = function(index)
 			return mock.scores[index]
+		end,
+	}
+	G.C_FriendList = {
+		GetFriendInfo = function(name)
+			return mock.friendList[name]
 		end,
 	}
 	G.UnitHonor = function()
