@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Bigger, outlined banner text, colored per event; a sound for deaths and level-ups (`/lp sound on|off`).
+- `/lp selftest` tests the real transport on the group channel instead of a whisper to yourself (the server rejects those); solo it only prints an info line.
+
 ## v0.1.0 (2026-10-11)
 
 First version: Core + Ticker MVP for WoW: Forever (beta, Interface 16001).

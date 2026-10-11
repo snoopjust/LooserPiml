@@ -105,9 +105,9 @@ function H.client(opts)
 	end
 	mock.rendered = {}
 	local render = display.Render
-	display.Render = function(self, text)
+	display.Render = function(self, text, ...)
 		mock.rendered[#mock.rendered + 1] = text
-		return render(self, text)
+		return render(self, text, ...)
 	end
 
 	if opts.debug then

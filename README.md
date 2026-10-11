@@ -51,6 +51,7 @@ and as a line in your chat window (only you see it).
 |---|---|
 | `/lp` | Help |
 | `/lp stats` | Death King and rankings (this session and all-time) |
+| `/lp sound on\|off` | Banner sound (death: warning, level-up: fanfare) |
 | `/lp version` | Your version and the versions in your group |
 | `/lp test on\|off` | Test mode: nothing is sent, fake group members appear |
 | `/lp sim <event> [name]` | In test mode: `death`, `drown`, `levelup`, `enter`, `leave`, `boss` |

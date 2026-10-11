@@ -15,8 +15,29 @@ Display.HOLD = 4           -- seconds a banner stays fully visible
 Display.FADE = 0.5         -- seconds for fade in / fade out
 Display.MAX_QUEUE = 10     -- waiting banners; older ones are dropped
 Display.MAX_HELD_SHOWN = 5 -- after an encounter, show at most this many banners
-Display.OFFSET_Y = 220     -- banner position above screen center
+Display.OFFSET_Y = 250     -- banner position above screen center
 Display.WATCH_INTERVAL = 2 -- seconds; re-check while holding in case the end event got lost
+Display.FONT_SIZE = 40     -- GameFontNormalHuge is only ~24, too easy to overlook mid-game
+
+-- Text color per variant (r, g, b). Class-colored names keep their own color.
+Display.COLORS = {
+	death = { 1, 0.35, 0.35 },
+	death_again = { 1, 0.35, 0.35 },
+	drowned = { 0.45, 0.75, 1 },
+	levelup = { 1, 0.82, 0 },
+	enter = { 0.85, 1, 0.85 },
+	leave = { 0.85, 0.85, 0.85 },
+}
+
+-- PlaySound takes a SoundKit ID; 8959 = raid warning, 888 = level-up fanfare.
+-- Enter/leave stay silent. Sounds play on the "Master" channel so they work
+-- even with sound effects muted. TODO(verify in-game): both IDs on Forever.
+Display.SOUNDS = {
+	death = 8959,
+	death_again = 8959,
+	drowned = 8959,
+	levelup = 888,
+}
 
 Display.queue = {} -- entries waiting for the banner
 Display.held = {}  -- entries held during an encounter
@@ -64,7 +85,7 @@ function Display:Format(sender, data)
 		instance = data.i or L.UNKNOWN_PLACE,
 	}
 	local text = template:gsub("{(%a+)}", values)
-	return { icon = self.ICONS[variant], text = text }
+	return { icon = self.ICONS[variant], text = text, variant = variant }
 end
 
 -- icon [test] During the boss: text
@@ -135,7 +156,8 @@ function Display:ShowNext()
 		return
 	end
 	self.showing = true
-	self:Render(self:Compose(entry))
+	self:Render(self:Compose(entry), entry.variant)
+	self:PlaySound(entry.variant)
 	C_Timer.After(self.HOLD + 2 * self.FADE, function()
 		self:ShowNext()
 	end)
@@ -172,6 +194,16 @@ function Display:OnEncounterEnd()
 	end
 end
 
+-- Played when the banner appears (not when queued, so it matches what you
+-- see, and not during a boss fight). Local output only.
+function Display:PlaySound(variant)
+	local id = self.SOUNDS[variant]
+	if not id or not PlaySound or (Ticker.db and Ticker.db.sound == false) then
+		return
+	end
+	PlaySound(id, "Master")
+end
+
 function Display:PrintChat(text)
 	if Ticker.db and Ticker.db.chatLog == false then
 		return
@@ -194,7 +226,7 @@ function Display:GetFrame()
 	-- EnableMouse(false) makes it click-through: it must never eat a click
 	-- in the middle of the screen.
 	local frame = CreateFrame("Frame", "LooserPimlBanner", UIParent)
-	frame:SetSize(1000, 60)
+	frame:SetSize(1600, 100)
 	frame:SetPoint("CENTER", UIParent, "CENTER", 0, self.OFFSET_Y)
 	frame:SetFrameStrata("HIGH")
 	frame:EnableMouse(false)
@@ -204,9 +236,16 @@ function Display:GetFrame()
 	-- TODO(verify in-game) that Forever has it.
 	local text = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 	text:SetPoint("CENTER")
-	text:SetWidth(1000)
+	text:SetWidth(1600)
 	text:SetJustifyH("CENTER")
 	text:SetTextColor(1, 1, 1)
+	-- Keep the template's font file (it follows the client locale) but make it
+	-- bigger, with a thick outline so it stays readable on snow and sky.
+	local fontPath = text:GetFont()
+	if fontPath then
+		text:SetFont(fontPath, self.FONT_SIZE, "THICKOUTLINE")
+	end
+	text:SetShadowOffset(2, -2)
 	frame.text = text
 
 	-- An AnimationGroup fades in, holds and fades out without any OnUpdate code.
@@ -235,9 +274,11 @@ function Display:GetFrame()
 	return frame
 end
 
-function Display:Render(text)
+function Display:Render(text, variant)
 	local frame = self:GetFrame()
 	frame.anim:Stop()
+	local color = self.COLORS[variant] or { 1, 1, 1 }
+	frame.text:SetTextColor(color[1], color[2], color[3])
 	frame.text:SetText(text)
 	frame:Show()
 	frame.anim:Play()

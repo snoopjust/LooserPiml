@@ -152,6 +152,7 @@ function Mock.new(opts)
 	self.received = {}   -- CHAT_MSG_ADDON deliveries to this client
 	self.chat = {}       -- DEFAULT_CHAT_FRAME lines
 	self.printed = {}
+	self.sounds = {}     -- PlaySound calls
 	self.errors = {}
 	self.prefixes = {}
 	self.invalidEvents = opts.invalidEvents or {}
@@ -485,6 +486,9 @@ function Mock:BuildEnv()
 		G.RAID_CLASS_COLORS[class] = { colorStr = colorStr }
 	end
 	G.UNKNOWNOBJECT = "Unknown"
+	G.PlaySound = function(id, channel)
+		mock.sounds[#mock.sounds + 1] = { id = id, channel = channel }
+	end
 	G.SlashCmdList = {}
 
 	-- Client / addon info

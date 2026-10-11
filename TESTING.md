@@ -150,4 +150,5 @@ Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
 | 21 | Packager action builds the zip with libs, `release.json` flavor `forever` | First tag push: check the release assets | |
 | 22 | WowUp (≥ 2.24.0 beta) detects the Forever client and installs from the GitHub URL | Friend installs via section "For friends" in README | |
 | 23 | A plain `LooserPiml.toc` (no `_Forever`/`_Camelot` suffix) loads on Forever | Section 2.1 | |
+| 25 | Banner sound IDs (8959 raid warning, 888 level-up) exist and play on Forever; the larger 40 pt outlined font looks right | `/lp test on`, `/lp sim death Max`, `/lp sim levelup Jo` | |
 | 24 | `C_EventUtils.IsEventValid` exists. Without it, unknown events could raise errors on registration | No Lua errors on login | No login errors (2026-10-11). Existence not checked separately |

@@ -26,6 +26,7 @@ Ticker.MAX_TEXT = 64             -- max length of names coming from other client
 Ticker.defaults = {
 	stats = {},     -- all-time stats, see Stats.lua
 	chatLog = true, -- also print each event as a local chat line
+	sound = true,   -- play a sound when a banner appears
 }
 
 local function notSecret(value)
@@ -42,6 +43,13 @@ function Ticker:OnInitialize()
 			self.Stats:PrintReport()
 		end
 	end, "", L.HELP_STATS)
+	ns.Slash:Register("sound", function(arg)
+		arg = arg:lower()
+		if arg == "on" or arg == "off" then
+			self.db.sound = arg == "on"
+		end
+		ns.Log:Print(L.SOUND_STATE, self.db.sound and L.ON or L.OFF)
+	end, "on/off", L.HELP_SOUND)
 end
 
 function Ticker:OnEnable()
