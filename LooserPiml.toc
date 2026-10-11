@@ -30,6 +30,7 @@ Core\Comm.lua
 Core\Version.lua
 Core\TestMode.lua
 Core\Slash.lua
+Core\Options.lua
 
 Modules\Ticker\Ticker.lua
 Modules\Ticker\Stats.lua

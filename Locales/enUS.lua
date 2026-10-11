@@ -13,6 +13,7 @@ local L = setmetatable({}, {
 ns.L = L
 
 -- Core ----------------------------------------------------------------
+L.ADDON_NAME = "LooserPiml"
 L.ADDON_PREFIX = "|cff33ff99LooserPiml|r"
 L.CHAT_TAG = "|cff33ff99[LP]|r"
 L.TEST_TAG = "|cff999999[test]|r"
@@ -46,6 +47,59 @@ L.LOG_EMPTY = "Log is empty."
 
 L.BLOCKED_ACTION = "Blocked action: %s tried to call %s"
 L.FORBIDDEN_ACTION = "Forbidden action: %s tried to call %s"
+
+-- Options (Options > AddOns > LooserPiml) ------------------------------
+L.HELP_OPTIONS = "open the settings (Options > AddOns > LooserPiml)"
+L.OPTIONS_UNAVAILABLE = "The settings panel is not available on this client."
+L.OPT_RESET_BUTTON = "Reset"
+L.OPT_RUN_BUTTON = "Run"
+
+L.OPT_SECTION_TICKER = "Ticker messages"
+L.OPT_SHOW_LEVELUP = "Level ups"
+L.OPT_SHOW_DEATH = "Deaths"
+L.OPT_SHOW_DROWNED = "Drownings"
+L.OPT_SHOW_DUNGEON = "Dungeon enter/leave"
+L.OPT_SHOW_RAID = "Raid enter/leave"
+L.OPT_SHOW_BOSS_RECAP = "Boss recap"
+L.OPT_SHOW_BOSS_RECAP_TIP = "After a boss fight, show the banners that were held during the fight. Off: they only appear in chat."
+L.OPT_SHOW_OWN = "Also show my own events"
+
+L.OPT_SECTION_BANNER = "Banner"
+L.OPT_BANNER_HOLD = "Display time"
+L.OPT_BANNER_SIZE = "Text size"
+L.OPT_BANNER_SOUND = "Sound for deaths and level ups"
+L.OPT_BANNER_MOVE = "Move banner"
+L.OPT_BANNER_MOVE_BUTTON = "Unlock / lock"
+L.OPT_BANNER_MOVE_TIP = "Shows a sample banner you can drag with the left mouse button. Click again to lock it."
+L.OPT_BANNER_RESET = "Reset banner position"
+L.BANNER_MOVE_HINT = "LooserPiml banner - drag me, then lock it in the settings"
+L.BANNER_UNLOCKED = "Banner unlocked: drag it, then click \"Unlock / lock\" again."
+L.BANNER_LOCKED = "Banner locked."
+
+L.OPT_SECTION_STATS = "Stats"
+L.OPT_STATS_COLLECT = "Collect stats"
+L.OPT_STATS_COLLECT_TIP = "Record deaths, gold, quests, loot and more for your character (stored on your computer only)."
+L.OPT_STATS_SHARE = "Share my stats with the group"
+L.OPT_STATS_SHARE_TIP = "Send your totals (never the detailed log) to group members who use LooserPiml, for the leaderboard."
+L.OPT_STATS_RESET = "Reset my stats"
+L.OPT_STATS_RESET_TIP = "Deletes this character's recorded stats. Friends keep the last totals you sent them."
+L.OPT_STATS_RESET_CONFIRM = "Delete all recorded LooserPiml stats of this character?"
+L.STATS_RESET_DONE = "Your stats were reset."
+
+L.OPT_SECTION_MINIMAP = "Minimap"
+L.OPT_MINIMAP_SHOW = "Show minimap button"
+
+L.OPT_SECTION_TESTING = "Testing"
+L.OPT_TEST_MODE = "Test mode"
+L.OPT_TEST_MODE_TIP = "Nothing is sent to other players; fake group members appear. Off again after /reload."
+L.OPT_TEST_SIM_DEATH = "Simulate a death"
+L.OPT_TEST_SIM_LEVELUP = "Simulate a level up"
+L.OPT_TEST_SIM_BOSS = "Simulate a boss fight"
+L.OPT_TEST_SAMPLE_FRIENDS = "Fill with sample friends"
+L.OPT_TEST_SAMPLE_FRIENDS_TIP = "Adds fake friends' stats so the leaderboard can be viewed solo (test mode only, never saved)."
+L.OPT_TEST_SELFTEST = "Run self-test"
+L.OPT_TEST_SHOW_LOG = "Show debug log"
+L.SAMPLE_FRIENDS_DONE = "Sample friends added. Open the leaderboard with the minimap button."
 
 -- Version -------------------------------------------------------------
 L.VERSION_SELF = "Your version: %s (protocol %d)"

@@ -50,9 +50,10 @@ removable.
 | `Core/Version.lua` | HELLO handshake and local version warnings | `SendHello`, `OnHello`, `Check`, `Compare` |
 | `Core/TestMode.lua` | `/lp test` (loopback + fake group), simulation registry (`/lp sim`), `/lp selftest` | `Enable`, `Sim`, `SimEncounter`, `SelfTest` |
 | `Core/Slash.lua` | `/lp` dispatcher; modules register subcommands | `Register`, `Dispatch` |
+| `Core/Options.lua` | Settings registry: modules register options (get/set on their own SavedVariables); after login it builds the Blizzard panel (Options › AddOns › LooserPiml) with proxy settings; confirmation dialogs | `AddSection`, `Add`, `Set`, `BuildPanel`, `Open`, `Confirm` |
 | `Modules/Ticker/Ticker.lua` | Creates the Ticker module; turns `LP_PLAYER_*`/`LP_INSTANCE_*` messages into announcements, broadcasts them, receives others' | `OnOwnEvent`, `OnPlayerDead`, `Sanitize`, `OnTick`, `Simulate` |
 | `Modules/Ticker/Stats.lua` | Counters per player: session (memory) and all-time (SavedVariables) | `Record`, `Ranking`, `BuildReport` |
-| `Modules/Ticker/Display.lua` | Turns an event into text, banner queue, encounter hold, local chat line, banner frame | `Format`, `Compose`, `ShowEvent`, `OnEncounterEnd`, `Render` |
+| `Modules/Ticker/Display.lua` | Turns an event into text, banner queue, encounter hold (boss recap switch), local chat line, banner frame with configurable time/size/position (move/lock) | `Format`, `Compose`, `ShowEvent`, `OnEncounterEnd`, `Render`, `SetUnlocked` |
 | `Modules/Stats/Stats.lua` | Stats module: per-character event log and daily buckets in SavedVariables, recording, compaction, friends cache | `Record`, `Count`, `GetAggregates` |
 | `Modules/Stats/Model.lua` | Pure data model: gaming day/week periods, aggregates per event type, rollup + cap, sanitizing received aggregates | `AddEvent`, `Merge`, `Compact`, `Aggregate`, `Sanitize` |
 | `Modules/Stats/Collectors.lua` | Game events → `Record()`: death, level-up (played time), quests, instances, boss kills/wipes, zones, flights, hearthstone, jumps (post-hook), food/drink | `EnableCollectors`, `PostHook`, `OnJump` |
@@ -88,7 +89,7 @@ login.
 | 1–7 | `Libs\…` | Everything below uses `LibStub(...)`. LibStub first, CallbackHandler before AceComm (AceComm builds on it), LibDataBroker before LibDBIcon |
 | 6 | `Core\Init.lua` | Defines `ns:RegisterCore` / `ns:NewModule`, which every later file calls |
 | 7 | `Locales\enUS.lua` | Later files capture `local L = ns.L` at load time |
-| 8–16 | `Core\Events` → `DB` → `Log` → `Roster` → `PlayerEvents` → `Comm` → `Version` → `TestMode` → `Slash` | Registration order = initialization order. `DB` must initialize before `Log` reads the debug flag and before any module asks for storage |
+| 8–17 | `Core\Events` → `DB` → `Log` → `Roster` → `PlayerEvents` → `Comm` → `Version` → `TestMode` → `Slash` → `Options` | Registration order = initialization order. `DB` must initialize before `Log` reads the debug flag and before any module asks for storage |
 | 16 | `Modules\Ticker\Ticker.lua` | Creates the module with `ns:NewModule("Ticker")` |
 | 17–18 | `Stats.lua`, `Display.lua` | Attach to that module (`ns:GetModule("Ticker")`), so they must come after it |
 

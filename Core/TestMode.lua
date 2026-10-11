@@ -29,6 +29,34 @@ function TestMode:IsEnabled()
 	return self.enabled
 end
 
+function TestMode:OnInitialize()
+	local Options = ns.Options
+	Options:AddSection("testing", L.OPT_SECTION_TESTING, 90)
+	Options:Add("testing", {
+		type = "checkbox", key = "test.mode", label = L.OPT_TEST_MODE, tooltip = L.OPT_TEST_MODE_TIP, default = false,
+		get = function()
+			return self.enabled
+		end,
+		set = function(value)
+			if value then
+				self:Enable()
+			else
+				self:Disable()
+			end
+		end,
+	})
+	local buttons = {
+		{ L.OPT_TEST_SIM_DEATH, function() self:Sim("death", self.FAKE_MEMBERS[1].name) end },
+		{ L.OPT_TEST_SIM_LEVELUP, function() self:Sim("levelup", self.FAKE_MEMBERS[3].name) end },
+		{ L.OPT_TEST_SIM_BOSS, function() self:Sim("boss") end },
+		{ L.OPT_TEST_SELFTEST, function() self:SelfTest() end },
+		{ L.OPT_TEST_SHOW_LOG, function() ns.Log:PrintRecent(30) end },
+	}
+	for _, button in ipairs(buttons) do
+		Options:Add("testing", { type = "button", label = button[1], buttonText = L.OPT_RUN_BUTTON, onClick = button[2] })
+	end
+end
+
 local function fakeVersion(kind)
 	local base = ns.Version:GetComparable() or ns.Version.TEST_BASELINE
 	local v = ns.Version.Parse(base) or { 1, 0, 0 }

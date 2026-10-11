@@ -18,7 +18,7 @@ local _, ns = ...
 local DB = {}
 ns:RegisterCore("DB", DB)
 
-DB.SCHEMA_VERSION = 1
+DB.SCHEMA_VERSION = 2
 
 DB.defaults = {
 	debug = false,
@@ -28,8 +28,19 @@ DB.defaults = {
 
 -- DB.migrations[n] upgrades a database from schema n-1 to n. Add a new entry
 -- and bump SCHEMA_VERSION whenever the saved layout changes, e.g.:
---   DB.migrations[2] = function(db) db.modules.Ticker.foo = db.modules.Ticker.bar; db.modules.Ticker.bar = nil end
+--   DB.migrations[3] = function(db) db.modules.Ticker.foo = db.modules.Ticker.bar; db.modules.Ticker.bar = nil end
 DB.migrations = {}
+
+-- v0.2.0: banner settings are grouped (hold, size, sound, position), so
+-- the v0.1.0 top-level Ticker.sound moves into Ticker.banner.sound.
+DB.migrations[2] = function(db)
+	local ticker = type(db.modules) == "table" and db.modules.Ticker
+	if type(ticker) == "table" and ticker.sound ~= nil then
+		ticker.banner = type(ticker.banner) == "table" and ticker.banner or {}
+		ticker.banner.sound = ticker.sound
+		ticker.sound = nil
+	end
+end
 
 -- Fills missing keys in dst from src (deep). Existing values win.
 local function copyDefaults(src, dst)

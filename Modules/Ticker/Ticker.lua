@@ -23,10 +23,34 @@ Ticker.ANNOUNCED_INSTANCES = { party = true, raid = true } -- not battlegrounds/
 Ticker.MAX_TEXT = 64 -- max length of names coming from other clients
 
 Ticker.defaults = {
-	stats = {},     -- all-time counters from TICK messages, see Stats.lua
+	stats = {},     -- session/all-time counters from TICK messages, see Stats.lua
 	chatLog = true, -- also print each event as a local chat line
-	sound = true,   -- play a sound when a banner appears
+	-- Which messages are shown (display only: stats and broadcasting don't care)
+	show = { levelup = true, death = true, drowned = true, dungeon = true, raid = true, bossRecap = true, own = true },
+	-- Banner look; point = { point, relativePoint, x, y } once moved
+	banner = { hold = 4, size = 40, sound = true },
 }
+
+-- Display filter key of an event (see the "show" settings).
+function Ticker:FilterKey(data)
+	if data.k == "death" then
+		return data.dr and "drowned" or "death"
+	elseif data.k == "levelup" then
+		return "levelup"
+	elseif data.k == "enter" or data.k == "leave" then
+		return data.it == "raid" and "raid" or "dungeon"
+	end
+	return nil
+end
+
+function Ticker:ShouldShow(data, isOwn)
+	local show = self.db.show
+	if isOwn and show.own == false then
+		return false
+	end
+	local key = self:FilterKey(data)
+	return not key or show[key] ~= false
+end
 
 function Ticker:OnInitialize()
 	self.db = ns.DB:GetModuleDB(self.name, self.defaults)
@@ -38,10 +62,85 @@ function Ticker:OnInitialize()
 	ns.Slash:Register("sound", function(arg)
 		arg = arg:lower()
 		if arg == "on" or arg == "off" then
-			self.db.sound = arg == "on"
+			self.db.banner.sound = arg == "on"
 		end
-		ns.Log:Print(L.SOUND_STATE, self.db.sound and L.ON or L.OFF)
+		ns.Log:Print(L.SOUND_STATE, self.db.banner.sound and L.ON or L.OFF)
 	end, "on/off", L.HELP_SOUND)
+	self:RegisterOptions()
+end
+
+function Ticker:RegisterOptions()
+	local Options = ns.Options
+	Options:AddSection("ticker", L.OPT_SECTION_TICKER, 10)
+	for _, entry in ipairs({
+		{ "levelup", L.OPT_SHOW_LEVELUP },
+		{ "death", L.OPT_SHOW_DEATH },
+		{ "drowned", L.OPT_SHOW_DROWNED },
+		{ "dungeon", L.OPT_SHOW_DUNGEON },
+		{ "raid", L.OPT_SHOW_RAID },
+		{ "bossRecap", L.OPT_SHOW_BOSS_RECAP, L.OPT_SHOW_BOSS_RECAP_TIP },
+		{ "own", L.OPT_SHOW_OWN },
+	}) do
+		local key = entry[1]
+		Options:Add("ticker", {
+			type = "checkbox", key = "ticker." .. key, label = entry[2], tooltip = entry[3], default = true,
+			get = function()
+				return self.db.show[key] ~= false
+			end,
+			set = function(value)
+				self.db.show[key] = value and true or false
+			end,
+		})
+	end
+
+	Options:AddSection("banner", L.OPT_SECTION_BANNER, 20)
+	Options:Add("banner", {
+		type = "slider", key = "banner.hold", label = L.OPT_BANNER_HOLD, default = 4, min = 2, max = 10, step = 0.5,
+		format = function(value)
+			return string.format("%.1f s", value)
+		end,
+		get = function()
+			return self.db.banner.hold
+		end,
+		set = function(value)
+			self.db.banner.hold = value
+			self.Display:ApplyStyle()
+		end,
+	})
+	Options:Add("banner", {
+		type = "slider", key = "banner.size", label = L.OPT_BANNER_SIZE, default = 40, min = 20, max = 64, step = 2,
+		format = function(value)
+			return tostring(math.floor(value))
+		end,
+		get = function()
+			return self.db.banner.size
+		end,
+		set = function(value)
+			self.db.banner.size = value
+			self.Display:ApplyStyle()
+		end,
+	})
+	Options:Add("banner", {
+		type = "checkbox", key = "banner.sound", label = L.OPT_BANNER_SOUND, default = true,
+		get = function()
+			return self.db.banner.sound ~= false
+		end,
+		set = function(value)
+			self.db.banner.sound = value and true or false
+		end,
+	})
+	Options:Add("banner", {
+		type = "button", label = L.OPT_BANNER_MOVE, buttonText = L.OPT_BANNER_MOVE_BUTTON, tooltip = L.OPT_BANNER_MOVE_TIP,
+		onClick = function()
+			self.Display:ToggleUnlocked()
+		end,
+	})
+	Options:Add("banner", {
+		type = "button", label = L.OPT_BANNER_RESET, buttonText = L.OPT_RESET_BUTTON,
+		onClick = function()
+			self.Display:ResetPosition()
+		end,
+	})
 end
 
 function Ticker:OnEnable()
@@ -71,7 +170,9 @@ function Ticker:OnOwnEvent(kind, data, isTest)
 	data.c = data.c or ns.Roster:GetPlayerClass()
 	local me = ns.Roster:GetPlayerName()
 	self.Stats:Record(me, data, isTest)
-	self.Display:ShowEvent(me, data, { test = isTest })
+	if self:ShouldShow(data, true) then
+		self.Display:ShowEvent(me, data, { test = isTest })
+	end
 	return ns.Comm:Send(self.MSG, data)
 end
 
@@ -136,7 +237,9 @@ function Ticker:OnTick(data, sender, meta)
 		return
 	end
 	self.Stats:Record(sender, event, meta.test)
-	self.Display:ShowEvent(sender, event, { late = meta.late, test = meta.test })
+	if self:ShouldShow(event, false) then
+		self.Display:ShowEvent(sender, event, { late = meta.late, test = meta.test })
+	end
 end
 
 ----------------------------------------------------------------------

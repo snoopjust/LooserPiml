@@ -11,13 +11,21 @@ local Ticker = ns:GetModule("Ticker")
 local Display = {}
 Ticker.Display = Display
 
-Display.HOLD = 4           -- seconds a banner stays fully visible
+Display.HOLD = 4           -- default seconds a banner stays fully visible (setting: banner.hold)
 Display.FADE = 0.5         -- seconds for fade in / fade out
 Display.MAX_QUEUE = 10     -- waiting banners; older ones are dropped
 Display.MAX_HELD_SHOWN = 5 -- after an encounter, show at most this many banners
 Display.OFFSET_Y = 250     -- banner position above screen center
 Display.WATCH_INTERVAL = 2 -- seconds; re-check while holding in case the end event got lost
-Display.FONT_SIZE = 40     -- GameFontNormalHuge is only ~24, too easy to overlook mid-game
+Display.FONT_SIZE = 40     -- default (setting: banner.size); GameFontNormalHuge is only ~24, too easy to overlook
+
+local function settings()
+	return Ticker.db and Ticker.db.banner or {}
+end
+
+function Display:GetHold()
+	return settings().hold or self.HOLD
+end
 
 -- Text color per variant (r, g, b). Class-colored names keep their own color.
 Display.COLORS = {
@@ -31,7 +39,7 @@ Display.COLORS = {
 
 -- PlaySound takes a SoundKit ID; 8959 = raid warning, 888 = level-up fanfare.
 -- Enter/leave stay silent. Sounds play on the "Master" channel so they work
--- even with sound effects muted. TODO(verify in-game): both IDs on Forever.
+-- even with sound effects muted. Confirmed in-game (TESTING.md #25).
 Display.SOUNDS = {
 	death = 8959,
 	death_again = 8959,
@@ -45,7 +53,7 @@ Display.showing = false
 
 -- WoW fonts have no emoji glyphs, so icons are texture escapes.
 -- Raid target icons exist in every client: 1 star, 2 circle, 4 triangle,
--- 6 square, 8 skull. TODO(verify in-game): icons render in Forever.
+-- 6 square, 8 skull. Confirmed in-game (TESTING.md #16).
 local function icon(index)
 	return "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_" .. index .. ":0|t"
 end
@@ -158,7 +166,7 @@ function Display:ShowNext()
 	self.showing = true
 	self:Render(self:Compose(entry), entry.variant)
 	self:PlaySound(entry.variant)
-	C_Timer.After(self.HOLD + 2 * self.FADE, function()
+	C_Timer.After(self:GetHold() + 2 * self.FADE, function()
 		self:ShowNext()
 	end)
 end
@@ -178,6 +186,14 @@ function Display:OnEncounterEnd()
 	end
 	local held = self.held
 	self.held = {}
+	if Ticker.db and Ticker.db.show and Ticker.db.show.bossRecap == false then
+		-- Recap switched off: keep the record in chat, no banners.
+		for _, entry in ipairs(held) do
+			entry.late = "encounter"
+			self:PrintChat(self:Compose(entry))
+		end
+		return
+	end
 	for i, entry in ipairs(held) do
 		entry.late = "encounter"
 		if i <= self.MAX_HELD_SHOWN then
@@ -198,7 +214,7 @@ end
 -- see, and not during a boss fight). Local output only.
 function Display:PlaySound(variant)
 	local id = self.SOUNDS[variant]
-	if not id or not PlaySound or (Ticker.db and Ticker.db.sound == false) then
+	if not id or not PlaySound or settings().sound == false then
 		return
 	end
 	PlaySound(id, "Master")
@@ -224,29 +240,33 @@ function Display:GetFrame()
 	-- Parented to UIParent so it hides with the UI (Alt+Z) and scales with
 	-- it. Strata HIGH puts it above the game UI but below dialogs.
 	-- EnableMouse(false) makes it click-through: it must never eat a click
-	-- in the middle of the screen.
+	-- in the middle of the screen (only while "Move banner" is active).
 	local frame = CreateFrame("Frame", "LooserPimlBanner", UIParent)
 	frame:SetSize(1600, 100)
-	frame:SetPoint("CENTER", UIParent, "CENTER", 0, self.OFFSET_Y)
 	frame:SetFrameStrata("HIGH")
+	frame:SetClampedToScreen(true)
 	frame:EnableMouse(false)
 	frame:Hide()
 
-	-- GameFontNormalHuge is a font object from Blizzard's UI code.
-	-- TODO(verify in-game) that Forever has it.
+	-- Shown only while unlocked, so you can see what you are dragging.
+	local background = frame:CreateTexture(nil, "BACKGROUND")
+	background:SetAllPoints()
+	background:SetColorTexture(0.1, 0.08, 0.06, 0.6)
+	background:Hide()
+	frame.background = background
+
+	-- GameFontNormalHuge is a font object from Blizzard's UI code (confirmed
+	-- in-game, TESTING.md #16).
 	local text = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 	text:SetPoint("CENTER")
 	text:SetWidth(1600)
 	text:SetJustifyH("CENTER")
 	text:SetTextColor(1, 1, 1)
-	-- Keep the template's font file (it follows the client locale) but make it
-	-- bigger, with a thick outline so it stays readable on snow and sky.
-	local fontPath = text:GetFont()
-	if fontPath then
-		text:SetFont(fontPath, self.FONT_SIZE, "THICKOUTLINE")
-	end
 	text:SetShadowOffset(2, -2)
 	frame.text = text
+	-- Keep the template's font file (it follows the client locale); only the
+	-- size and outline change.
+	frame.fontPath = text:GetFont()
 
 	-- An AnimationGroup fades in, holds and fades out without any OnUpdate code.
 	local anim = frame:CreateAnimationGroup()
@@ -258,7 +278,6 @@ function Display:GetFrame()
 	local hold = anim:CreateAnimation("Alpha")
 	hold:SetFromAlpha(1)
 	hold:SetToAlpha(1)
-	hold:SetDuration(self.HOLD)
 	hold:SetOrder(2)
 	local fadeOut = anim:CreateAnimation("Alpha")
 	fadeOut:SetFromAlpha(1)
@@ -266,16 +285,98 @@ function Display:GetFrame()
 	fadeOut:SetDuration(self.FADE)
 	fadeOut:SetOrder(3)
 	anim:SetScript("OnFinished", function()
-		frame:Hide()
+		if not self.unlocked then
+			frame:Hide()
+		end
 	end)
 	frame.anim = anim
+	frame.holdAnim = hold
+
+	frame:SetScript("OnDragStart", function()
+		frame:StartMoving()
+	end)
+	frame:SetScript("OnDragStop", function()
+		frame:StopMovingOrSizing()
+		self:SavePosition()
+	end)
 
 	self.frame = frame
+	self:ApplyPosition()
+	self:ApplyStyle()
 	return frame
+end
+
+-- Size and display time from the settings (also called when they change).
+function Display:ApplyStyle()
+	local frame = self.frame
+	if not frame then
+		return
+	end
+	if frame.fontPath then
+		frame.text:SetFont(frame.fontPath, settings().size or self.FONT_SIZE, "THICKOUTLINE")
+	end
+	frame.holdAnim:SetDuration(self:GetHold())
+end
+
+function Display:ApplyPosition()
+	local frame = self.frame
+	if not frame then
+		return
+	end
+	frame:ClearAllPoints()
+	local point = settings().point
+	if type(point) == "table" and point[1] then
+		frame:SetPoint(point[1], UIParent, point[2] or point[1], point[3] or 0, point[4] or 0)
+	else
+		frame:SetPoint("CENTER", UIParent, "CENTER", 0, self.OFFSET_Y)
+	end
+end
+
+function Display:SavePosition()
+	local point, _, relativePoint, x, y = self.frame:GetPoint(1)
+	if point and Ticker.db then
+		Ticker.db.banner.point = { point, relativePoint, x, y }
+	end
+end
+
+function Display:ResetPosition()
+	if Ticker.db then
+		Ticker.db.banner.point = nil
+	end
+	self:ApplyPosition()
+end
+
+-- "Move banner": unlocked shows a sample banner you can drag; locking
+-- makes it click-through again.
+function Display:SetUnlocked(unlocked)
+	local frame = self:GetFrame()
+	self.unlocked = unlocked and true or false
+	frame:SetMovable(self.unlocked)
+	frame:EnableMouse(self.unlocked)
+	if self.unlocked then
+		frame:RegisterForDrag("LeftButton")
+		frame.anim:Stop()
+		frame.background:Show()
+		frame.text:SetText(L.BANNER_MOVE_HINT)
+		frame:SetAlpha(1)
+		frame:Show()
+	else
+		frame:RegisterForDrag()
+		frame.background:Hide()
+		frame:Hide()
+	end
+end
+
+function Display:ToggleUnlocked()
+	self:SetUnlocked(not self.unlocked)
+	ns.Log:Print(self.unlocked and L.BANNER_UNLOCKED or L.BANNER_LOCKED)
 end
 
 function Display:Render(text, variant)
 	local frame = self:GetFrame()
+	if self.unlocked then
+		return -- while moving, the sample banner stays
+	end
 	frame.anim:Stop()
 	local color = self.COLORS[variant] or { 1, 1, 1 }
 	frame.text:SetTextColor(color[1], color[2], color[3])

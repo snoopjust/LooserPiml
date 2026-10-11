@@ -120,6 +120,12 @@ function FrameMethods:Hide() self.shown = false end
 function FrameMethods:IsShown() return self.shown end
 function FrameMethods:SetText(text) self.text_ = text end
 function FrameMethods:GetText() return self.text_ end
+function FrameMethods:GetFont() return self.fontPath or "Fonts\\FRIZQT__.TTF", self.fontSize or 24, self.fontFlags end
+function FrameMethods:SetFont(path, size, flags) self.fontPath, self.fontSize, self.fontFlags = path, size, flags end
+function FrameMethods:EnableMouse(v) self.mouseEnabled = v and true or false end
+function FrameMethods:IsMouseEnabled() return self.mouseEnabled == true end
+function FrameMethods:SetDuration(d) self.duration = d end
+function FrameMethods:GetDuration() return self.duration end
 function FrameMethods:GetParent() return self.parent end
 function FrameMethods:GetName() return self.name end
 function FrameMethods:GetObjectType() return self.kind end
@@ -538,6 +544,72 @@ function Mock:BuildEnv()
 		return 0, 0
 	end
 	G.UISpecialFrames = {}
+
+	-- Settings API (signatures as in Blizzard_Settings.lua, Forever 1.60.1)
+	mock.settings = { categories = {}, byVariable = {}, opened = nil }
+	G.Settings = {
+		VarType = { Boolean = "boolean", Number = "number" },
+		RegisterVerticalLayoutCategory = function(name)
+			local layout = { initializers = {} }
+			function layout:AddInitializer(initializer)
+				self.initializers[#self.initializers + 1] = initializer
+			end
+			local category = { name = name, layout = layout }
+			function category:GetID()
+				return 4242
+			end
+			mock.settings.categories[#mock.settings.categories + 1] = category
+			return category, layout
+		end,
+		RegisterProxySetting = function(_, variable, varType, name, default, getValue, setValue)
+			local setting = { variable = variable, varType = varType, name = name, default = default }
+			function setting:GetValue()
+				return getValue()
+			end
+			function setting:SetValue(value)
+				setValue(value)
+			end
+			mock.settings.byVariable[variable] = setting
+			return setting
+		end,
+		CreateCheckbox = function(category, setting, tooltip)
+			local init = { kind = "checkbox", setting = setting, tooltip = tooltip }
+			category.layout:AddInitializer(init)
+			return init
+		end,
+		CreateSlider = function(category, setting, options, tooltip)
+			local init = { kind = "slider", setting = setting, options = options, tooltip = tooltip }
+			category.layout:AddInitializer(init)
+			return init
+		end,
+		CreateSliderOptions = function(minValue, maxValue, rate)
+			local options = { minValue = minValue, maxValue = maxValue, rate = rate }
+			function options:SetLabelFormatter(_, formatter)
+				self.formatter = formatter
+			end
+			return options
+		end,
+		RegisterAddOnCategory = function(category)
+			mock.settings.registered = category
+		end,
+		OpenToCategory = function(categoryID)
+			mock.settings.opened = categoryID
+		end,
+	}
+	G.CreateSettingsButtonInitializer = function(name, buttonText, onClick, tooltip)
+		return { kind = "button", name = name, buttonText = buttonText, onClick = onClick, tooltip = tooltip }
+	end
+	G.CreateSettingsListSectionHeaderInitializer = function(name)
+		return { kind = "header", name = name }
+	end
+	G.MinimalSliderWithSteppersMixin = { Label = { Right = 4 } }
+	G.StaticPopupDialogs = {}
+	mock.popups = {}
+	G.StaticPopup_Show = function(which)
+		mock.popups[#mock.popups + 1] = which
+		return {}
+	end
+	G.YES, G.NO = "Yes", "No"
 	G.DEFAULT_CHAT_FRAME = {
 		AddMessage = function(_, text)
 			mock.chat[#mock.chat + 1] = text

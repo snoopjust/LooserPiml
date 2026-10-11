@@ -31,6 +31,49 @@ Stats.defaults = {
 
 function Stats:OnInitialize()
 	self.db = ns.DB:GetModuleDB(self.name, self.defaults)
+	self:RegisterOptions()
+end
+
+function Stats:RegisterOptions()
+	local L, Options = ns.L, ns.Options
+	Options:AddSection("stats", L.OPT_SECTION_STATS, 30)
+	Options:Add("stats", {
+		type = "checkbox", key = "stats.collect", label = L.OPT_STATS_COLLECT, tooltip = L.OPT_STATS_COLLECT_TIP, default = true,
+		get = function()
+			return self.db.collect ~= false
+		end,
+		set = function(value)
+			self.db.collect = value and true or false
+		end,
+	})
+	Options:Add("stats", {
+		type = "checkbox", key = "stats.share", label = L.OPT_STATS_SHARE, tooltip = L.OPT_STATS_SHARE_TIP, default = true,
+		get = function()
+			return self.db.share ~= false
+		end,
+		set = function(value)
+			self.db.share = value and true or false
+		end,
+	})
+	Options:Add("stats", {
+		type = "button", label = L.OPT_STATS_RESET, buttonText = L.OPT_RESET_BUTTON, tooltip = L.OPT_STATS_RESET_TIP,
+		onClick = function()
+			Options:Confirm("RESET_STATS", L.OPT_STATS_RESET_CONFIRM, function()
+				self:ResetMine()
+				ns.Log:Print(L.STATS_RESET_DONE)
+			end)
+		end,
+	})
+	Options:Add("testing", {
+		type = "button", label = L.OPT_TEST_SAMPLE_FRIENDS, buttonText = L.OPT_RUN_BUTTON, tooltip = L.OPT_TEST_SAMPLE_FRIENDS_TIP,
+		onClick = function()
+			if self:FillSampleFriends() then
+				ns.Log:Print(L.SAMPLE_FRIENDS_DONE)
+			else
+				ns.Log:Print(L.SIM_NEEDS_TEST)
+			end
+		end,
+	})
 end
 
 function Stats:OnEnable()
