@@ -250,10 +250,15 @@ function TestMode:SelfTest()
 	}
 	info(L.SELFTEST_APIS:format(table.concat(apis, ", ")))
 
-	-- 5. Real transport: whisper a multi-chunk addon message to ourselves
+	-- 5. Real transport: a multi-chunk addon message on the group channel,
+	-- which the server echoes back to the sender (needs a group).
 	local restricted, reason = ns.Comm:IsRestricted()
 	if restricted then
 		result(false, L.SELFTEST_TRANSPORT_SKIPPED:format(reason))
+		return
+	end
+	if not ns.Roster:GetChannel() then
+		info(L.SELFTEST_TRANSPORT_SOLO)
 		return
 	end
 	local expected = checksum(payload)

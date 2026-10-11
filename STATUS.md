@@ -58,6 +58,15 @@ Every feature is checked against these:
 | Extra files beyond the brief | `Locales/enUS.lua` (localizable strings), `Core/Slash.lua` (command registry), `tools/setup-test-env.ps1`, `.github/workflows/tests.yml`, `/lp log` command | Needed for the requested localizable table, module subcommands and reproducible tests |
 | License | MIT, copyright "snoopjust" (in `LICENSE` and the TOC) | Confirmed 2026-10-11 |
 
+## In-game results
+
+First solo session on the Forever beta (2026-10-11):
+
+- Interface **16001** confirmed. Addon loads without Lua errors; `/lp` works.
+- Libraries load: CallbackHandler r8, AceComm r14, AceSerializer r5, LibDeflate r3. Encode/compress roundtrip OK (4 chunks).
+- `/lp selftest` APIs line: `InChatMessagingLockdown`, `C_InstanceEncounter`, `issecretvalue`, `GetMirrorTimerProgress` and `ADDON_RESTRICTION_STATE_CHANGED` all exist.
+- **Addon whisper to yourself does not work** (server: "No player named 'X' is currently playing"). The selftest's real-transport step therefore now uses the group channel and is skipped solo (info line, not a failure). Group delivery incl. the server echo is still to be verified with a friend.
+
 ## Open questions
 
 1. **Final addon name**: still the working title "LooserPiml".

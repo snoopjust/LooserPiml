@@ -569,6 +569,12 @@ function Mock:BuildEnv()
 				mock.refused[#mock.refused + 1] = call
 				return SEND_RESULT.NotInGroup
 			end
+			if chatType == "WHISPER" and mock:MatchesName(target) then
+				-- Real Forever server behaviour: accepts the call, then rejects
+				-- the whisper to yourself with a system message.
+				mock.chat[#mock.chat + 1] = "No player named '" .. mock.player.name .. "' is currently playing."
+				return SEND_RESULT.Success
+			end
 			mock.sent[#mock.sent + 1] = call
 			mock.net.pending[#mock.net.pending + 1] = {
 				from = mock, prefix = prefix, text = text, chatType = chatType, target = target,

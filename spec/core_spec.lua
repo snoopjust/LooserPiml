@@ -215,30 +215,40 @@ describe("Core", function()
 	end)
 
 	describe("self-test", function()
-		it("reports libraries, roundtrip, loopback and the real whisper transport", function()
-			local mock, ns = H.client()
+		it("reports libraries, roundtrip, loopback and the real group transport", function()
+			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
 			ns.Slash:Dispatch("selftest")
 			mock:Advance(2)
 			assert.is_true(mock:ChatContains("[OK]|r Libraries: CallbackHandler-1.0"))
 			assert.is_true(mock:ChatContains("Serialize + compress roundtrip"))
 			assert.is_true(mock:ChatContains("[OK]|r Loopback dispatch"))
 			assert.is_true(mock:ChatContains("interface=16001"))
-			assert.is_true(mock:ChatContains("Real transport: received after"))
+			assert.is_true(mock:ChatContains("Real transport: echo received after"))
 			assert.is_false(mock:ChatContains("[FAIL]"))
-			-- the payload really needed several chunks
-			local whispers = 0
+			-- the payload really needed several chunks, on the group channel
+			local chunks = 0
 			for _, call in ipairs(mock.sent) do
-				if call.chatType == "WHISPER" then
-					whispers = whispers + 1
-					assert.are.equal("Me", call.target)
+				if call.chatType == "PARTY" and ns.Comm:Decode(call.text) == nil then
+					chunks = chunks + 1 -- a partial chunk can't be decoded on its own
 				end
+				assert.are_not.equal("WHISPER", call.chatType)
 			end
-			assert.is_true(whispers >= 3, "expected a multi-chunk whisper, got " .. whispers)
+			assert.is_true(chunks >= 3, "expected a multi-chunk message, got " .. chunks .. " partial chunks")
 			H.assertNoErrors(mock)
 		end)
 
-		it("reports a timeout when the whisper never arrives", function()
+		it("is only an info line, not a failure, when solo (whispering yourself is rejected)", function()
 			local mock, ns = H.client()
+			ns.Slash:Dispatch("selftest")
+			mock:Advance(12)
+			assert.is_true(mock:ChatContains("not tested, you are not in a group"))
+			assert.is_false(mock:ChatContains("[FAIL]"))
+			assert.are.equal(0, #mock.sent)
+			assert.is_false(mock:ChatContains("No player named"))
+		end)
+
+		it("reports a timeout when the echo never arrives", function()
+			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
 			mock.net.Flush = function(net)
 				net.pending = {} -- the server swallows everything
 			end

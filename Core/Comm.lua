@@ -366,18 +366,22 @@ function Comm:SimulateReceive(sender, msgType, data, late)
 	self:Receive(self:Encode(envelope), sender, "LOOPBACK", true)
 end
 
--- /lp selftest: a real addon message, whispered to ourselves. Bypasses
--- test-mode loopback and the hold queue on purpose.
+-- /lp selftest: a real addon message on the group channel, which the server
+-- echoes back to us. Bypasses test-mode loopback and the hold queue on
+-- purpose. Returns nil when not in a group.
 -- onResult(didSend) is called once all chunks were handed to the client.
--- WHISPER is the only channel that works solo. Addon whispers outside
--- instances are exempt from the per-prefix throttle. Whether the server
--- delivers an addon whisper to yourself on Forever: TODO(verify in-game).
+-- Why not a whisper to ourselves: on Forever the server rejects it ("No
+-- player named X is currently playing"), so solo there is no real-transport
+-- test. Friends' clients ignore SELFTEST messages (no handler registered).
 function Comm:SendSelfTest(data, onResult)
+	local channel = ns.Roster:GetChannel()
+	if not channel then
+		return nil
+	end
 	local envelope = { v = self.PROTOCOL, t = self.SELFTEST, s = self.session, id = nextId(), d = data }
 	local text = self:Encode(envelope)
-	local target = UnitName("player")
 	local allSent = true
-	self:SendCommMessage(self.PREFIX, text, "WHISPER", target, "NORMAL", function(_, sent, total, didSend)
+	self:SendCommMessage(self.PREFIX, text, channel, nil, "NORMAL", function(_, sent, total, didSend)
 		if didSend == false then
 			allSent = false
 		end

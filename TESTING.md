@@ -61,8 +61,9 @@ Dev setup: run `tools\fetch-libs.ps1` once. The junction from
   - `[OK] Serialize + compress roundtrip (... bytes on the wire, N chunks)` with N ≥ 3
   - `[OK] Loopback dispatch`
   - `[INFO] Client APIs: ...`. **Copy this line into STATUS.md.** It answers several TODOs below.
-  - `[OK] Real transport: received after X s, payload intact`. This is the whisper to yourself, multi-chunk.
-- [ ] If the transport step fails or times out, note the exact message. The likely cause is that addon whispers to yourself don't work on Forever. Group traffic can still work; check it in section 3.
+  - Solo: `[INFO] Real transport: not tested, you are not in a group`. That's expected: the Forever server rejects whispers to yourself ("No player named X is currently playing"), so there is no solo transport test.
+  - In a group: `[OK] Real transport: echo received after X s, payload intact`. This sends a multi-chunk message on the group channel and checks that the server echoes it back.
+- [ ] If the echo times out in a group, note the exact message; check section 3 as well.
 
 ### 2.3 Test mode + simulations
 
@@ -126,15 +127,15 @@ Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
 
 | # | What | How to check | Result |
 |---|---|---|---|
-| 1 | Interface number is 16001 and stays that at launch (Nov 4, 2026) | `/dump select(4, GetBuildInfo())` | |
+| 1 | Interface number is 16001 and stays that at launch (Nov 4, 2026) | `/dump select(4, GetBuildInfo())` | **16001 confirmed on the beta (2026-10-11)**. Launch value still open |
 | 2 | Client folder name `_classic_beta_` (beta). Launch name? | Look in the WoW folder after launch | |
-| 3 | LibStub, CallbackHandler, AceComm r14 + ChatThrottleLib v32, AceSerializer, LibDeflate load on Forever | `/lp selftest` step 1, no Lua errors | |
-| 4 | Addon whisper to yourself (incl. multi-chunk) is delivered | `/lp selftest` step 5 | |
+| 3 | LibStub, CallbackHandler, AceComm r14 + ChatThrottleLib v32, AceSerializer, LibDeflate load on Forever | `/lp selftest` step 1, no Lua errors | **OK (2026-10-11)**: CallbackHandler r8, AceComm r14, AceSerializer r5, LibDeflate r3 loaded, roundtrip OK |
+| 4 | Addon whisper to yourself (incl. multi-chunk) is delivered | `/lp selftest` | **No (2026-10-11)**: server answers "No player named 'X' is currently playing" per chunk. Selftest now uses the group channel instead (see #5) |
 | 5 | PARTY/RAID addon messages arrive between friends | Section 3.1/3.2 | |
 | 6 | During boss encounters: `InChatMessagingLockdown()` is true and/or sends return `AddOnMessageLockdown` (11); messages sent then are dropped, not delayed by the server | Section 3.3, debug log ("refused by the client") | |
 | 7 | Are regular dungeons (outside encounters) a "communication-restricted map"? If yes, all dungeon messages are delayed until you leave | `/dump C_ChatInfo.InChatMessagingLockdown()` inside a dungeon | |
-| 8 | `ADDON_RESTRICTION_STATE_CHANGED` exists on Forever and fires Inactive (0) when restrictions end | `/lp selftest` APIs line (`RestrictionEvent=`), debug log | |
-| 9 | `ENCOUNTER_START`/`ENCOUNTER_END` fire for 5-man bosses on Forever; `C_InstanceEncounter.IsEncounterInProgress` exists | Section 3.3, selftest APIs line | |
+| 8 | `ADDON_RESTRICTION_STATE_CHANGED` exists on Forever and fires Inactive (0) when restrictions end | `/lp selftest` APIs line (`RestrictionEvent=`), debug log | Event exists (2026-10-11). Firing on lift: still open |
+| 9 | `ENCOUNTER_START`/`ENCOUNTER_END` fire for 5-man bosses on Forever; `C_InstanceEncounter.IsEncounterInProgress` exists | Section 3.3, selftest APIs line | API exists (2026-10-11). Events in a real boss: still open |
 | 10 | `CHAT_MSG_ADDON` payloads are never secret, even while locked down. AceComm doesn't check, so this would show as AceComm Lua errors during bosses | BugSack during section 3.3 | |
 | 11 | `PLAYER_DEAD` fires once per death; not on login as a ghost | Section 2.4 | |
 | 12 | Drowning: `MIRROR_TIMER_START` BREATH payload (value in ms, scale -1) is not secret; order of `MIRROR_TIMER_STOP` vs `PLAYER_DEAD`; `GetMirrorTimerProgress("BREATH")` at empty breath | Section 2.4 with debug on | |
@@ -149,4 +150,4 @@ Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
 | 21 | Packager action builds the zip with libs, `release.json` flavor `forever` | First tag push: check the release assets | |
 | 22 | WowUp (≥ 2.24.0 beta) detects the Forever client and installs from the GitHub URL | Friend installs via section "For friends" in README | |
 | 23 | A plain `LooserPiml.toc` (no `_Forever`/`_Camelot` suffix) loads on Forever | Section 2.1 | |
-| 24 | `C_EventUtils.IsEventValid` exists. Without it, unknown events could raise errors on registration | No Lua errors on login | |
+| 24 | `C_EventUtils.IsEventValid` exists. Without it, unknown events could raise errors on registration | No Lua errors on login | No login errors (2026-10-11). Existence not checked separately |
