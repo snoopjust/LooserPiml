@@ -1,14 +1,15 @@
 # LooserPiml
 
-A small World of Warcraft: Forever addon for a fixed group of friends. It shows
-what happens to your friends: who levelled up, who died (again), who drowned,
-and who walked into a dungeon. You also get a ranking to settle who the
-Death King is.
+A small World of Warcraft: Forever addon for a fixed circle of friends. It
+shows what happens to your friends, whether you play together or each on
+your own: who levelled up, who died (again), who drowned, and who walked
+into a dungeon. You also get a leaderboard to settle who the Death King is.
 
 > Working title. Free, open source, no ads, no donation requests.
 
-**Status:** MVP (Core + Ticker). Group Inventory, Profession Directory and
-Group Bets are planned. See [STATUS.md](STATUS.md).
+**Status:** v0.2.0 beta (Ticker, stats, leaderboard, friends list).
+Friends' inventory, profession directory and bets are planned. See
+[STATUS.md](STATUS.md).
 
 ## Fair play
 
@@ -44,21 +45,53 @@ Details are in [STATUS.md](STATUS.md#safety-rules).
 If the addon list shows LooserPiml as "out of date" after a game patch,
 tick "Load out of date AddOns" until a new release is out.
 
+### Beta versions (for testers)
+
+Test versions are GitHub releases marked **Pre-release** (tags like
+`v0.2.0-beta.1`). Normal installs never get them.
+
+**WowUp:** WowUp only looks at pre-releases if the addon channel of your
+Forever installation is set to Beta. Without that it installs the latest
+normal release instead.
+
+1. WowUp → **Options** → **WoW** → your **WoW: Forever** installation →
+   **Default Addon Channel** → **Beta**.
+2. **Get Addons** → **Install from URL** → paste
+   `https://github.com/snoopjust/LooserPiml` → **Install**. If LooserPiml
+   is already installed, use **Check for Updates** instead.
+3. The version column shows `v0.2.0-beta.1` (or newer).
+4. To get only normal releases again later, set the channel back to
+   **Stable**. The next normal release replaces the beta.
+
+**Manual (fallback):** open
+[Releases](https://github.com/snoopjust/LooserPiml/releases), pick the
+newest release marked **Pre-release**, download its
+`LooserPiml-v0.2.0-beta.1-forever.zip` (the name follows the version) and
+install it like the manual install above.
+
 ## Usage
 
-One thing to set up: **add your friends** (minimap button › tab
-**Friends**, by name or with one click from your group) and ask them to add
-you. LooserPiml shares nothing with anyone who isn't on your list or
-hasn't added you. Events then show up as a banner in the middle of the
-screen and as a line in your chat window (only you see it).
+One thing to set up: **add your friends**, twice.
 
-- **Minimap button** (the skull): left-click opens the group stats window
+1. On the **WoW friends list** (Social › Friends › Add Friend), so
+   LooserPiml can see when they are online, also when you're not grouped.
+2. On the **LooserPiml friends list**: minimap button › tab **Friends**,
+   by name, from your group or from your WoW friends list. Ask them to add
+   you too.
+
+LooserPiml shares nothing with anyone who isn't on your list or hasn't
+added you. Once you're connected, your friends' events show up as a banner
+in the middle of the screen and as a line in your chat window (only you
+see it), wherever they are playing.
+
+- **Minimap button** (the skull): left-click opens the LooserPiml window
   with the leaderboard and your friends list, right-click opens the
   settings, drag moves it. Hover it for friends online, deaths tonight and
   the current Death King.
 - **Settings**: Esc › Options › AddOns › LooserPiml. Your friends list
-  (subpage Friends), which messages you see, banner position and size,
-  stats sharing on or off.
+  (subpage Friends), how friends' events are shown (banner, chat line only
+  or off), which messages you see, banner position and size, stats sharing
+  on or off.
 - **Stats**: LooserPiml records your own character's evening (deaths, gold,
   quests, loot, duels, ...) on your computer and shares only the totals
   with your LooserPiml friends, for the leaderboard.
@@ -68,14 +101,14 @@ Slash commands are optional, for power users:
 | Command | What it does |
 |---|---|
 | `/lp` | Help |
-| `/lp stats` | Opens the group stats window (`/lp stats chat`: text ranking in chat) |
+| `/lp stats` | Opens the LooserPiml window (`/lp stats chat`: text ranking in chat) |
 | `/lp options` | Opens the settings |
 | `/lp friends [add\|remove <name> \| list]` | Opens your LooserPiml friends list, or adds/removes/lists friends |
 | `/lp sound on\|off` | Banner sound (death: warning, level-up: fanfare) |
-| `/lp version` | Your version and the versions of your friends in the group |
-| `/lp test on\|off` | Test mode: nothing is sent, fake group members appear |
+| `/lp version` | Your version and your LooserPiml friends' versions |
+| `/lp test on\|off` | Test mode: nothing is sent, fake friends appear |
 | `/lp sim <event> [name]` | In test mode: `death`, `drown`, `levelup`, `enter`, `leave`, `boss` |
-| `/lp selftest` | Checks libraries, encoding and the real message transport |
+| `/lp selftest` | Checks libraries, encoding and the real message transport (with a connected friend) |
 | `/lp debug on\|off` | Debug log, including blocked actions and Lua errors |
 | `/lp log [count]` | Prints the recent debug log |
 
@@ -153,6 +186,10 @@ In-game and two-player checks: [TESTING.md](TESTING.md).
    libraries are embedded and `@project-version@` becomes `v0.1.0`. The zip
    is attached to a GitHub release, and WowUp sees it.
 
+Tags containing `alpha` or `beta` (e.g. `v0.2.0-beta.1`) become GitHub
+**pre-releases** (the packager decides by the tag name); WowUp offers them
+only to installations on the Beta channel.
+
 The repo must be public so WowUp can read releases without a token.
 
 ### Writing a new module
@@ -178,9 +215,9 @@ function Bets:OnEnable()
 end
 
 function Bets:OnBetMessage(data, sender, meta) ... end
--- send with ns.Comm:Send("BET", { ... }, { scope = "group" })
--- (scope "group": friends in the group, "friends": all confirmed friends online;
--- Comm and Core/Friends decide who that is, never anyone off the friends list)
+-- send with ns.Comm:Send("BET", { ... }, { scope = "friends" })
+-- (one whisper to each connected friend, grouped or not; Comm and
+-- Core/Friends decide who that is, never anyone off the friends list)
 ```
 
 Disabling a module unregisters its events and message handlers. If the saved
