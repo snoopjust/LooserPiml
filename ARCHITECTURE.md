@@ -7,22 +7,26 @@ order, message flow or restriction handling change (see CLAUDE.md).
 
 Every client watches only **its own** player. The **Ticker** announces
 what happens (death, level up, dungeon): shown locally right away, then
-broadcast as a hidden addon message; friends' clients check it and show it.
-The **Stats** module records much more of the own character's life (gold,
-loot, quests, duels, ...) in a local log, condenses it into totals and
-shares only those totals with friends, which feeds the **Leaderboard**
-window. Nobody ever inspects other players, so no secret unit data is
+sent as a hidden addon message to LooserPiml friends in the group; their
+clients check it and show it. The **Stats** module records much more of
+the own character's life (gold, loot, quests, duels, ...) in a local log,
+condenses it into totals and shares only those totals with friends, which
+feeds the **Leaderboard** window. LooserPiml talks **only to players on the
+explicit, mutual LooserPiml friends list** (see "Communication: only with
+LooserPiml friends"); nobody else receives anything, not even hidden addon
+messages. Nobody ever inspects other players, so no secret unit data is
 needed. While the game blocks addon messages (boss encounters), outgoing
 messages wait in a queue and banners are held. Both come out after the
 fight. Friends never need slash commands: the minimap button opens the
-window, and everything else is in Options › AddOns › LooserPiml.
+window (leaderboard and friends list), and everything else is in
+Options › AddOns › LooserPiml.
 
 ```mermaid
 flowchart TB
     Ticker["Ticker module<br/>Ticker.lua · Stats.lua · Display.lua"]
     Stats["Stats module<br/>log · collectors · model · sync · leaderboard tab"]
     Future["Inventory · Professions · Bets<br/>(planned)"]
-    Core["Core services<br/>Events · DB · Log · Roster · PlayerEvents<br/>Comm · Version · TestMode · Slash · Options · Window"]
+    Core["Core services<br/>Events · DB · Log · Roster · Friends · PlayerEvents<br/>Comm · Version · TestMode · Slash · Options · Window · FriendsPanel"]
     Libs["AceComm-3.0 + ChatThrottleLib · AceSerializer-3.0 · LibDeflate<br/>LibDataBroker · LibDBIcon"]
     API[("WoW client API<br/>game events · C_ChatInfo.SendAddonMessage · CHAT_MSG_ADDON · Settings")]
     Ticker --> Core
@@ -52,24 +56,26 @@ module removable.
 | `Core/Events.lua` | The single event frame; dispatches game events and internal `LP_*` messages to registered owners; tracks boss-encounter state | `Register`, `dispatch`, `IsEncounterActive`, `SetSimulatedEncounter` |
 | `Core/DB.lua` | `LooserPimlDB`: defaults, `schemaVersion`, ordered migrations, per-module storage | `Migrate`, `GetModuleDB` |
 | `Core/Log.lua` | Ring buffer + chat output by level; records ADDON_ACTION_BLOCKED/FORBIDDEN, LUA_WARNING, our Lua errors | `IsVerbose`, `CaptureError`, `InstallErrorHook` |
-| `Core/Roster.lua` | Group members as `Name-Realm`, class colors, which addon channel reaches the group, fake members for test mode | `Scan`, `Normalize`, `GetChannel`, `ColorName` |
+| `Core/Roster.lua` | Group members as `Name-Realm` with class and connection state, count of members that can't be identified, which addon channel reaches the group, fake members for test mode | `Scan`, `Normalize`, `GetChannel`, `ColorName`, `unknownMembers` |
+| `Core/Friends.lua` | The LooserPiml friends list (SavedVariables), name parsing, online state, handshake state ("confirmed"), and `Route()`: who may get a message of a given scope, via the group channel or whispers. The enforcement point of the communication rule | `Add`, `Remove`, `IsListed`, `OnHandshake`, `UpdateOnline`, `Allowed`, `CanUseGroupChannel`, `Route` |
 | `Core/PlayerEvents.lua` | Detects the own player's death (incl. drowned), level-up and instance enter/leave (with corpse-run rule) and fires `LP_PLAYER_DEAD`, `LP_PLAYER_LEVEL_UP`, `LP_INSTANCE_ENTER/LEAVE` for any module | `PLAYER_DEAD`, `WasDrowning`, `PLAYER_ENTERING_WORLD`, `GetCurrentInstance` |
-| `Core/Comm.lua` | Encoding, sending (hold queue with optional replace key, retries), receiving (filters, dispatch to handlers), test loopback, self-test transport; fires `LP_COMM_SENT` per real transmission | `Send`, `IsRestricted`, `Hold`, `Flush`, `Transmit`, `Receive` |
-| `Core/Version.lua` | HELLO handshake and local version warnings | `SendHello`, `OnHello`, `Check`, `Compare` |
+| `Core/Comm.lua` | Encoding, sending (message scopes routed through `Friends:Route` at transmit time, hold queue with optional replace key, retries, test-mode messages never go out), receiving (drops senders who aren't listed before decoding, filters, dispatch to handlers), test loopback, self-test transport; fires `LP_COMM_SENT` per real transmission | `Send`, `IsRestricted`, `Hold`, `Flush`, `Transmit`, `Receive` |
+| `Core/Version.lua` | HELLO handshake with listed friends only (greetings, replies, per-friend cooldown; an answer means "mutual") and local version warnings | `Greet`, `Reply`, `OnHello`, `Check`, `Compare` |
 | `Core/TestMode.lua` | `/lp test` (loopback + fake group), simulation registry (`/lp sim`), `/lp selftest` | `Enable`, `Sim`, `SimEncounter`, `SelfTest` |
 | `Core/Slash.lua` | `/lp` dispatcher; modules register subcommands | `Register`, `Dispatch` |
 | `Core/Options.lua` | Settings registry: modules register options (get/set on their own SavedVariables); after login it builds the Blizzard panel (Options › AddOns › LooserPiml) with proxy settings; confirmation dialogs | `AddSection`, `Add`, `Set`, `BuildPanel`, `Open`, `Confirm` |
 | `Core/Window.lua` | Main window shell (theme, title, ESC, saved position, tab registry, footer with version status + Settings button), minimap button (LibDataBroker launcher + LibDBIcon) with tooltip providers, Addon Compartment callbacks, `/lp stats` | `RegisterTab`, `AddTooltipProvider`, `Open`, `Toggle`, `GetVersionStatus` |
+| `Core/FriendsPanel.lua` | The friends list UI, built twice: the Friends tab and the settings page Options › AddOns › LooserPiml › Friends (canvas subcategory). Add by name, add from group (real members only), remove per row | `Create`, `Refresh`, `OnInitialize` |
 | `Modules/Ticker/Ticker.lua` | Creates the Ticker module; turns `LP_PLAYER_*`/`LP_INSTANCE_*` messages into announcements, broadcasts them, receives others' | `OnOwnEvent`, `OnPlayerDead`, `Sanitize`, `OnTick`, `Simulate` |
 | `Modules/Ticker/Stats.lua` | Counters per player: session (memory) and all-time (SavedVariables) | `Record`, `Ranking`, `BuildReport` |
 | `Modules/Ticker/Display.lua` | Turns an event into text, banner queue, encounter hold (boss recap switch), local chat line, banner frame with configurable time/size/position (move/lock) | `Format`, `Compose`, `ShowEvent`, `OnEncounterEnd`, `Render`, `SetUnlocked` |
-| `Modules/Stats/Stats.lua` | Stats module: per-character event log and daily buckets in SavedVariables, recording, compaction, friends cache | `Record`, `Count`, `GetAggregates` |
+| `Modules/Stats/Stats.lua` | Stats module: per-character event log and daily buckets in SavedVariables, recording, compaction, group time with confirmed friends | `Record`, `Count`, `GetAggregates`, `Tick` |
 | `Modules/Stats/Model.lua` | Pure data model: gaming day/week periods, aggregates per event type, rollup + cap, sanitizing received aggregates | `AddEvent`, `Merge`, `Compact`, `Aggregate`, `Sanitize` |
 | `Modules/Stats/Collectors.lua` | Game events → `Record()`: death, level-up (played time), quests, instances, boss kills/wipes, zones, flights, hearthstone, jumps (post-hook), food/drink | `EnableCollectors`, `PostHook`, `OnJump` |
 | `Modules/Stats/Money.lua` | Every gold change with a source from hints (quest, repair, flight, mail/AH mail) or the open window | `ClassifyMoney`, `OnPlayerMoney` |
-| `Modules/Stats/Loot.lua` | Own rare+ loot (quality from the item API or the link), crafted items, gathered nodes/fishing, skill-ups, parsed from loot/skill messages via the client's own format strings | `ParseLootMessage`, `ItemQuality`, `OnLootOpened` |
+| `Modules/Stats/Loot.lua` | Own rare+ loot (quality from the item API or the link), crafted items, gathering (herb/ore/skinning told apart by the cast before the loot window, fishing), chests as a separate counter, skill-ups, parsed from loot/skill messages via the client's own format strings | `ParseLootMessage`, `ItemQuality`, `NoteCast`, `OnLootOpened` |
 | `Modules/Stats/PvP.lua` | Duels (own only, opponent runs LooserPiml?), battleground joined/finished/deserted with own scoreboard row after the match, honor snapshots | `ParseDuel`, `OnPvPMatchComplete`, `ReadOwnScore` |
-| `Modules/Stats/Sync.lua` | Broadcasts own aggregates (login, group join, after changes; ≤ 1 per 30 s; off with "share my stats"), caches friends' aggregates with last-seen, staleness of tonight/week, participants for the leaderboard, sample friends in test mode | `RequestBroadcast`, `OnStatsMessage`, `GetParticipants`, `FillSampleFriends` |
+| `Modules/Stats/Sync.lua` | Sends own aggregates to confirmed friends (when a handshake arrives, after changes; ≤ 1 per 30 s; off with "share my stats"), caches friends' aggregates with last-seen (`friendStats`), staleness of tonight/week, participants for the leaderboard (friends who answered a handshake), sample friends in test mode | `RequestBroadcast`, `OnStatsMessage`, `GetParticipants`, `FillSampleFriends` |
 | `Modules/Stats/Leaderboard.lua` | Pure data provider: Hall of Fame awards (Death King, Fish Food, Gold Hoarder, Speedrunner; earlier achiever wins ties) and ranking rows with bar fractions | `Award`, `HallOfFame`, `Ranking`, `Format` |
 | `Modules/Stats/LeaderboardTab.lua` | Leaderboard tab (period selector, Hall of Fame cards, metric selector, ranking rows with bars) and the stats lines of the minimap tooltip; frame code only | `Create`, `Refresh`, `FillTooltip` |
 | `Libs/…` | LibStub, CallbackHandler, AceComm (+ ChatThrottleLib), AceSerializer, LibDeflate, LibDataBroker, LibDBIcon (minimap button). Fetched, not committed | — |
@@ -80,7 +86,7 @@ module removable.
 |---|---|
 | `spec/support/wow_mock.lua` | Simulated game client: its own global environment, clock, timers, frames, events, units, network. Errors on visible chat |
 | `spec/support/helpers.lua` | Loads every `.toc` file (libraries included) into a mock client and boots it; builds multi-client groups |
-| `spec/*_spec.lua` | busted tests per area (core, comm, version, stats, ticker) |
+| `spec/*_spec.lua` | busted tests per area (core, comm, version, friends, stats, ticker, options, window) |
 | `tools/fetch-libs.ps1` | Downloads the pinned libraries into `Libs/` |
 | `tools/link-addon.ps1` | Junction `<client>\Interface\AddOns\LooserPiml` → repo |
 | `tools/setup-test-env.ps1`, `tools/run-tests.ps1` | Lua 5.1 + busted toolchain, test runner |
@@ -99,7 +105,7 @@ login.
 | 1–7 | `Libs\…` | Everything below uses `LibStub(...)`. LibStub first, CallbackHandler before AceComm (AceComm builds on it), LibDataBroker before LibDBIcon |
 | 6 | `Core\Init.lua` | Defines `ns:RegisterCore` / `ns:NewModule`, which every later file calls |
 | 7 | `Locales\enUS.lua` | Later files capture `local L = ns.L` at load time |
-| 8–17 | `Core\Events` → `DB` → `Log` → `Roster` → `PlayerEvents` → `Comm` → `Version` → `TestMode` → `Slash` → `Options` → `Window` | Registration order = initialization order. `DB` must initialize before `Log` reads the debug flag and before any module asks for storage |
+| 8–19 | `Core\Events` → `DB` → `Log` → `Roster` → `Friends` → `PlayerEvents` → `Comm` → `Version` → `TestMode` → `Slash` → `Options` → `Window` → `FriendsPanel` | Registration order = initialization order. `DB` must initialize before `Log` reads the debug flag and before any module asks for storage. `Friends` needs `Roster`; `FriendsPanel` uses `Window`'s widget helpers at load time |
 | 16 | `Modules\Ticker\Ticker.lua` | Creates the module with `ns:NewModule("Ticker")` |
 | 17–18 | `Stats.lua`, `Display.lua` | Attach to that module (`ns:GetModule("Ticker")`), so they must come after it |
 
@@ -113,11 +119,11 @@ sequenceDiagram
     participant M as Modules
     G->>G: run all .toc files (define + register only)
     G->>I: ADDON_LOADED "LooserPiml" (SavedVariables are loaded now)
-    I->>C: OnInitialize: DB creates or migrates LooserPimlDB, Log hooks blocked-action events, Comm registers prefix LPiml, Slash registers /lp, TestMode and Window register their options
+    I->>C: OnInitialize: DB creates or migrates LooserPimlDB, Log hooks blocked-action events, Comm registers prefix LPiml, Slash registers /lp, TestMode and Window register their options, FriendsPanel registers the Friends tab and settings page
     I->>M: OnInitialize: modules get their storage and register options, tabs and tooltip lines
     G->>I: PLAYER_LOGIN (also after every /reload)
-    I->>C: OnEnable: Events listens for ENCOUNTER_START/END, Roster scans group, PlayerEvents takes its baseline, Comm adds flush triggers, Version schedules HELLO, Window creates the minimap button, Options builds the Blizzard panel (next frame)
-    I->>M: EnableModule for each module enabled in the DB: Ticker and Stats subscribe to events and messages, Stats compacts its log and schedules its first broadcast
+    I->>C: OnEnable: Events listens for ENCOUNTER_START/END, Roster scans group, Friends schedules the first handshake (5 s), PlayerEvents takes its baseline, Comm adds flush triggers, Window creates the minimap button, Options builds the Blizzard panel (next frame)
+    I->>M: EnableModule for each module enabled in the DB: Ticker and Stats subscribe to events and messages, Stats compacts its log and waits for friends' handshakes
     G->>M: PLAYER_ENTERING_WORLD (initial login: baseline only, nothing announced)
 ```
 
@@ -132,11 +138,11 @@ flowchart LR
         LOG[("Event log<br/>per character<br/>SavedVariables")]
         BUCKET[("Daily buckets<br/>rollups + live counters<br/>jumps, food, group time")]
         AGG["Model.AggregateAll<br/>tonight · week · all"]
-        SYNC["Sync<br/>STATS message,<br/>max 1 per 30 s"]
+        SYNC["Sync<br/>STATS message to confirmed<br/>friends, max 1 per 30 s"]
     end
     subgraph Friend["Friend's client"]
-        CACHE[("Friends cache<br/>SavedVariables,<br/>last seen")]
-        PART["GetParticipants<br/>me + friends<br/>(+ sample friends)"]
+        CACHE[("Stats cache friendStats<br/>SavedVariables,<br/>last seen")]
+        PART["GetParticipants<br/>me + listed friends who<br/>answered a handshake<br/>(+ sample friends)"]
         LB["Leaderboard.lua<br/>awards, ranking (pure)"]
         UI["LeaderboardTab<br/>+ minimap tooltip"]
     end
@@ -147,7 +153,7 @@ flowchart LR
     LOG -->|"Compact: older than 30 days<br/>or beyond 5000 events"| BUCKET
     LOG --> AGG
     BUCKET --> AGG
-    AGG --> SYNC -->|"Comm: held during bosses,<br/>newest replaces older"| CACHE
+    AGG --> SYNC -->|"Comm: routed via Friends,<br/>held during bosses,<br/>newest replaces older"| CACHE
     CACHE --> PART --> LB --> UI
 ```
 
@@ -168,9 +174,11 @@ The same flow runs the other way round too: my own aggregates join
    06:00. `Compact` rolls old events into daily buckets without changing
    totals. `AggregateAll` produces the three periods.
 4. **Share**: `Sync.lua` sends only the three aggregates, with the
-   sender's day/week keys, on login, group join and after changes (at most
-   once per 30 s, never with "Share my stats" off). Only award-relevant
-   timestamps are included to keep it to a couple of chunks.
+   sender's day/week keys, to friends who answered the handshake (scope
+   "friends", also outside the group if they are online on the friends
+   list): when a handshake arrives and after changes (at most once per
+   30 s, never with "Share my stats" off). Only award-relevant timestamps
+   are included to keep it to a couple of chunks.
 5. **Cache**: receivers sanitize every field and keep the latest
    aggregates per friend with "last seen", so offline friends stay on the
    leaderboard. A friend's "tonight" from an earlier day counts as empty.
@@ -187,6 +195,104 @@ proxy settings, so the panel always shows live values (a `/lp sound off`
 is reflected immediately). `Core/Window` is a shell with a tab registry.
 Modules add tabs and minimap-tooltip lines, so later stages (Profiles, PvP,
 Tonight) plug in without touching the window code.
+
+Pages whose content changes at runtime (the friends list, with a remove
+button per row) can't be built from Blizzard's vertical layout. They are
+registered with `Options:AddCanvas` and become canvas subcategories
+(Options › AddOns › LooserPiml › Friends). `Core/FriendsPanel` builds the
+same panel twice: for that settings page and for the window's Friends tab.
+
+## Communication: only with LooserPiml friends
+
+**Hard rule:** LooserPiml communicates only with players on the player's
+explicit LooserPiml friends list, and only once they listed them too.
+Players without LooserPiml, or who aren't listed, never receive anything,
+not even a hidden addon message. There is no discovery of any kind, no
+GUILD channel and no Battle.net.
+
+Three pieces enforce it:
+
+1. **Sending** (`Comm:Send` → `Comm:Transmit` → `Friends:Route`). Every
+   message has a scope. When the message really goes out (also after it
+   was held during a boss), `Route` decides who may get it and how:
+
+   | Scope | Used by | May reach |
+   |---|---|---|
+   | `handshake` | HELLO | listed friends |
+   | `friends` | STATS | listed friends who answered the handshake this session |
+   | `group` | TICK | like `friends`, and in the group right now |
+
+2. **Receiving** (`Comm:Receive`). A message from a sender who isn't on the
+   own list is dropped before it is even decoded. That is what makes the
+   list mutual: if Max isn't on my list, nothing Max sends ever reaches my
+   handlers, and I never answer.
+3. **Mutual = answered handshake** (`Version`, `Friends:OnHandshake`). A
+   listed friend's HELLO reaches my handlers only if they're on my list,
+   and they send one only if I'm on theirs. So a HELLO from them proves the
+   friendship is mutual, and they become "confirmed" for this session.
+   Going offline forgets it; the next contact starts with a fresh handshake.
+
+```mermaid
+flowchart TB
+    MSG["Comm:Transmit(entry)<br/>scope, optional to"]
+    TEST{"test mode?"}
+    LOOP["loopback only<br/>(test messages held until after<br/>test mode are dropped)"]
+    ALLOWED["Allowed(friend, scope)<br/>listed? confirmed? in group?"]
+    GROUPOK{"every other group member<br/>allowed, none unidentified?"}
+    CH["one message on PARTY / RAID /<br/>INSTANCE_CHAT"]
+    WH["one WHISPER per allowed friend<br/>outside that channel who is online<br/>(connected group member or<br/>online on the friends list)"]
+    NOBODY["nobody: nothing sent"]
+    MSG --> TEST
+    TEST -->|yes| LOOP
+    TEST -->|no| ALLOWED --> GROUPOK
+    GROUPOK -->|yes| CH
+    GROUPOK -->|no| WH
+    CH --> WH
+    ALLOWED -->|no one allowed| NOBODY
+```
+
+The handshake, with Max on my list:
+
+```mermaid
+sequenceDiagram
+    participant Me as Me (Max listed)
+    participant Max as Max
+    Note over Me: login + 5 s, or Max comes online,<br/>joins the group, or was just added
+    Me->>Max: HELLO (scope handshake, party if the group is only listed friends, else whisper)
+    alt Me is not on Max's list
+        Max--xMax: dropped before decoding, no answer
+        Note over Me: Max stays "waiting for them to add you":<br/>gets HELLOs only, no stats, no ticker
+    else Me is on Max's list
+        Max->>Max: OnHello: confirmed Me, version check
+        Max->>Me: HELLO reply (to Me only)
+        Me->>Me: OnHello: confirmed Max
+        Me->>Max: STATS (scope friends), later TICKs (scope group)
+    end
+```
+
+Details worth knowing:
+
+- **Online** means a connected group member (`UnitIsConnected`) or online
+  on the character friends list (`C_FriendList`). Whispering someone
+  offline makes the server print "No player named ..."; that's why whispers
+  wait for one of those signals. The one exception: a handshake reply may
+  go to a friend who wrote to us in the last 30 s (`REPLY_WINDOW`),
+  otherwise the handshake couldn't finish when only one side has the other
+  on the friends list.
+- **The group channel** reaches every member, so it is used only if every
+  other member may get that message, and never while a member can't be
+  identified (name still loading or secret, `Roster.unknownMembers`).
+- **Removing a friend** takes effect at once: `Route` reads the list for
+  every message, held ones included. Only chunks already handed to
+  ChatThrottleLib in the last moment (it paces them over a second or two)
+  can't be called back.
+- **Test mode** never reaches real players: everything loops back, messages
+  created in test mode are dropped if they would be flushed after it ended,
+  the self-test's real transport is skipped, and the fake members can't be
+  added to the friends list.
+- **Traffic**: in a group of only friends a message is one group message,
+  as before. Each stranger in the group turns it into one whisper per
+  friend, still throttled by ChatThrottleLib.
 
 ## One event end to end: my death on my friend's screen
 
@@ -218,7 +324,7 @@ sequenceDiagram
     else
         DA->>GA: chat line + banner (Render)
     end
-    TA->>CA: Send("TICK", data)
+    TA->>CA: Send("TICK", data, scope "group")
     opt IsRestricted(): encounter or InChatMessagingLockdown
         CA->>CA: Hold(entry), late = "encounter", start 5 s retry ticker
         Note over CA: Flush() on LP_ENCOUNTER_END, ADDON_RESTRICTION_STATE_CHANGED (Inactive), PLAYER_ENTERING_WORLD or the ticker
@@ -226,15 +332,15 @@ sequenceDiagram
     CA->>CA: Transmit(): Encode (AceSerializer, LibDeflate)
     alt test mode
         CA->>CA: Receive(text, me, "LOOPBACK"), dropped as own message
-    else in a group
-        CA->>LIB: SendCommMessage(LPiml, text, PARTY or RAID, onChunkSent)
+    else a confirmed friend may get it (Friends:Route)
+        CA->>LIB: SendCommMessage(LPiml, text, PARTY or RAID if the whole group is friends, else WHISPER per friend, onChunkSent)
         LIB->>SRV: C_ChatInfo.SendAddonMessage per chunk (max 255 bytes, throttled)
         opt client refuses a chunk
             LIB-->>CA: onChunkSent(didSend = false), OnSendFailed, Hold(atFront)
         end
         SRV-->>CA: CHAT_MSG_ADDON echo to me, ignored (own message)
         SRV->>CB: CHAT_MSG_ADDON chunks, AceComm reassembles, OnCommReceived
-        CB->>CB: Receive(): Decode, own-echo, protocol and duplicate checks
+        CB->>CB: Receive(): sender on the friend's list? (else dropped), Decode, own-echo, protocol and duplicate checks
         CB->>TB: OnTick(data, "Me-Realm", meta with late and test)
         TB->>TB: Sanitize (types, lengths, escape pipes)
         TB->>SB: Record(sender, event)
@@ -261,12 +367,13 @@ sequenceDiagram
 5. **Encounter hold, receiving side of the UI**: during a boss fight
    `Display` holds banners (my own too) and shows them afterwards. A 2 s
    watcher releases them even if no end event arrives.
-6. `Comm:Send` is the single door to the network. Every module uses it.
+6. `Comm:Send` is the single door to the network. Every module uses it,
+   always with a scope (see "Communication: only with LooserPiml friends").
 7. **Encounter queue, sending side**: if `Comm:IsRestricted()` says no, the
    message goes into `Comm.queue` with `late = "encounter"` (or
    `"lockdown"`). Several triggers call `Flush()`, which re-checks and then
-   uses the same `Transmit()`. `Transmit()` picks the channel only then, so
-   a group that changed in the meantime is handled.
+   uses the same `Transmit()`. `Transmit()` asks `Friends:Route` only then,
+   so a group that changed or a friend removed in the meantime is handled.
 8. Encoding: AceSerializer (table → string), LibDeflate compress, then
    re-encode so the bytes are allowed on the addon channel.
 9. **Test-mode loopback**: in test mode `Transmit()` never touches the
@@ -284,9 +391,11 @@ sequenceDiagram
     its own name.
 13. On the friend's side AceComm reassembles chunks and calls
     `Comm:OnCommReceived`.
-14. `Receive()` decodes, then filters: own echo, other protocol version
-    (except HELLO), and duplicates keyed by sender + session + id. Then it
-    dispatches to every handler registered for `"TICK"`.
+14. `Receive()` first drops the message if the sender isn't on the
+    friend's LooserPiml list. Then it decodes and filters: own echo, other
+    protocol version (except HELLO), and duplicates keyed by sender +
+    session + id. Then it dispatches to every handler registered for
+    `"TICK"`.
 15. `Ticker:OnTick` → `Sanitize` copies only known fields with correct types
     and escapes `|`.
 16. Stats count it; real events also go into the all-time stats.
@@ -331,14 +440,15 @@ WoW: Forever uses Retail's (Midnight) addon rules. What that means here:
 | `COMBAT_LOG_EVENT_UNFILTERED` can't be registered | `Ticker.lua` drowning section | No cause-of-death from the combat log. Drowning is derived from the breath mirror timer only |
 | Events that don't exist on this client | `Events:Register` (`C_EventUtils.IsEventValid`) | Skipped with a debug line instead of a Lua error |
 | Protected functions / blocked actions | `Log.lua` | We call none. ADDON_ACTION_BLOCKED/FORBIDDEN are recorded and shown in debug/test mode so a hit is obvious |
-| Throttling (per prefix, server side) | ChatThrottleLib (via AceComm), `Version.HELLO_COOLDOWN`, queue cap | Messages only on real events; compressed to few chunks; HELLO bursts coalesced |
+| Throttling (per prefix, server side) | ChatThrottleLib (via AceComm), `Version.HELLO_COOLDOWN`, queue cap | Messages only on real events; compressed to few chunks; at most one HELLO per friend per 10 s |
 | No visible chat, no automation | By design; enforced by `spec/support/wow_mock.lua` | Output is `DEFAULT_CHAT_FRAME:AddMessage` + our own frames only. `RequestTimePlayed` is never called (it prints to chat); played time comes from our own session timer |
 | Protected functions we want to observe (`JumpOrAscendStart`) | `Stats:PostHook` (Collectors.lua) | `hooksecurefunc` post-hooks only: they run after Blizzard's code and can't change or block it. Never called, never replaced |
 | Chat payloads secret during chat lockdown (`CHAT_MSG_SKILL`, `CHAT_MSG_SYSTEM`) | `Util.MatchFormat` | Secret text is never matched; the skill-up or duel is simply not recorded |
-| Spell casts secret while restricted (`UNIT_SPELLCAST_SUCCEEDED`) | `Stats:OnSpellcastSucceeded` | Secret spell ID: hearthstone/food/drink not counted |
+| Spell casts secret while restricted (`UNIT_SPELLCAST_SUCCEEDED`) | `Stats:OnSpellcastSucceeded`, `Stats:NoteCast` | Secret spell ID: hearthstone/food/drink not counted, and the next loot window is neither gathering nor a chest |
 | PvP scoreboard secret during an active match (`C_PvP.GetScoreInfo`) | `PvP.lua` | Read only after `PVP_MATCH_COMPLETE`; every value checked, secret ones dropped |
 | System messages are localized | `Util.MatchFormat` with the client's GlobalStrings | Loot, skill and duel messages are parsed with the client's own format strings, never hard-coded English |
-| Addon whispers to yourself are rejected | `Comm:SendSelfTest`, `Sync.lua` | Real transport tests and stats sync use group channels only |
+| Addon whispers to yourself are rejected | `Comm:SendSelfTest` | The real-transport test uses the group channel (only in a group of listed friends) |
+| Whispers to offline players produce a "No player named ..." system message | `Friends:IsOnline`, `Roster` (`UnitIsConnected`) | Whispers only to connected group members or friends online on the friends list (plus handshake replies within 30 s) |
 
 Everything here that couldn't be verified offline is marked
 `TODO(verify in-game)` in the code and listed in TESTING.md.
@@ -349,5 +459,10 @@ Everything here that couldn't be verified offline is marked
 files and loads every file with `setfenv` into a fresh environment built by
 `wow_mock.lua`. So each simulated client has its own globals, LibStub and
 ChatThrottleLib, and two clients can run side by side in one Lua process.
-Clients on a shared mock network exchange real AceComm chunks.
-`ticker_spec.lua` → "two clients end to end" walks the whole diagram above.
+Clients on a shared mock network exchange real AceComm chunks. Like the
+real server, the mock delivers a group message only to the sender's group
+and a whisper only to an online player. Every test checks every single
+`SendAddonMessage` call against the sender's friends list (`H.checkRecipients`),
+so no code path can quietly reach a player who isn't listed.
+`ticker_spec.lua` → "two clients end to end" walks the whole diagram above;
+`friends_spec.lua` covers the communication rule.

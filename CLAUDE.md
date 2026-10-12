@@ -16,6 +16,28 @@ chat (sync only through `ns.Comm`); no automation of game actions; all
 traffic throttled. **If a feature conflicts with them, stop and ask instead of
 working around it.** Never touch other addons, the WTF folder or game files.
 
+**Communication only with the explicit, mutual LooserPiml friends list**
+(hard rule, same weight as the ones above). Players without LooserPiml, or
+who aren't on the player's list, must never receive anything from
+LooserPiml, not even an invisible addon message:
+
+- Send only through `ns.Comm:Send(type, data, { scope = ... })`; the scope
+  (`handshake`, `friends`, `group`) and `Friends:Route` decide the
+  recipients when the message really goes out. Never call
+  `SendAddonMessage`/`SendCommMessage` yourself, never add a GUILD,
+  Battle.net or broadcast path, never send anything to "discover" who runs
+  LooserPiml.
+- The group channel only if every other group member may receive the
+  message; otherwise whispers to listed friends who are online.
+- Incoming messages from senders who aren't listed are dropped
+  (`Comm:Receive`); don't add handlers that bypass that.
+- Leaderboard, "friends online" and sync include only listed friends who
+  answered the handshake. Test mode and sample friends never send anything
+  to real players.
+- The test helpers check every send in every spec against the friends
+  list. A new message type or code path needs a test that it keeps the
+  rule.
+
 ## Code conventions
 
 - **Comment every non-obvious WoW API behaviour or restriction workaround.
