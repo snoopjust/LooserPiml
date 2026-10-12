@@ -8,6 +8,17 @@ LooserPiml is a WoW: Forever addon (Mainline/Midnight-style API, Interface
 - Decisions, open questions, safety rules: [STATUS.md](STATUS.md)
 - Test levels and the `TODO(verify in-game)` table: [TESTING.md](TESTING.md)
 
+## Core concept
+
+The core unit of LooserPiml is the **circle of listed LooserPiml friends,
+not the WoW party or raid**. Friends often play separately (two of five
+online, each doing their own thing) and only sometimes group up. Every
+feature (ticker, stats, leaderboard, later inventory and duels) must work
+between connected friends whether or not anyone is grouped. Grouping may be
+used as context in event data (e.g. time "grouped with" a friend), never as
+a precondition. Texts say "friends", not "group" ("LooserPiml · Friends",
+"Max and Lootius entered The Deadmines", "Friends' inventory").
+
 ## Safety rules (non-negotiable)
 
 Check every change against the rules in STATUS.md → "Safety rules": official
@@ -22,21 +33,24 @@ who aren't on the player's list, must never receive anything from
 LooserPiml, not even an invisible addon message:
 
 - Send only through `ns.Comm:Send(type, data, { scope = ... })`; the scope
-  (`handshake`, `friends`, `group`) and `Friends:Route` decide the
-  recipients when the message really goes out. Never call
-  `SendAddonMessage`/`SendCommMessage` yourself, never add a GUILD,
-  Battle.net or broadcast path, never send anything to "discover" who runs
-  LooserPiml.
-- The group channel only if every other group member may receive the
-  message; otherwise whispers to listed friends who are online.
+  (`handshake` or `friends`) and `Friends:Route` decide the recipients when
+  the message really goes out. Never call `SendAddonMessage`/`SendCommMessage`
+  yourself, never add a GUILD, Battle.net or broadcast path, never send
+  anything to "discover" who runs LooserPiml.
+- **Transport is always one WHISPER addon message per connected friend**
+  (listed + answered the handshake + online). Never PARTY, RAID or
+  INSTANCE_CHAT, not even when the whole group is friends: no special cases
+  for mixed groups. Throttling, the encounter queue and "decide recipients
+  at send time" stay.
 - Incoming messages from senders who aren't listed are dropped
   (`Comm:Receive`); don't add handlers that bypass that.
 - Leaderboard, "friends online" and sync include only listed friends who
   answered the handshake. Test mode and sample friends never send anything
   to real players.
-- The test helpers check every send in every spec against the friends
-  list. A new message type or code path needs a test that it keeps the
-  rule.
+- The test helpers check every send in every spec: it must be a WHISPER
+  to a listed friend. A new message type or code path needs a test that it
+  keeps the rule, and features need a test with friends who are not
+  grouped.
 
 ## Code conventions
 
