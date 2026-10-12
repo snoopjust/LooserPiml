@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-12 (stage A: stats foundation, minimap button, leaderboard, settings; not yet tested in-game, not released)_
+_Last updated: 2026-10-12 (stage A plus the LooserPiml friends list and the communication rule; not yet tested in-game, not released)_
 
 ## Done
 
@@ -9,18 +9,20 @@ _Last updated: 2026-10-12 (stage A: stats foundation, minimap button, leaderboar
   - `Core/Events.lua`: central dispatcher (owners, method or function handlers, internal `LP_*` messages, skips events the client doesn't know), boss-encounter state with a lost-event safety net and test-mode simulation.
   - `Core/DB.lua`: `LooserPimlDB` with `schemaVersion` and ordered migrations, defaults, per-module storage.
   - `Core/Log.lua`: ring buffer, debug output, capture of `ADDON_ACTION_BLOCKED`/`FORBIDDEN`/`LUA_WARNING` and our Lua errors (error-handler hook only in debug/test mode).
-  - `Core/Roster.lua`: group members as `Name-Realm`, class colors, channel choice (RAID/PARTY/INSTANCE_CHAT), fake members.
-  - `Core/Comm.lua`: AceComm prefix `LPiml`, AceSerializer + LibDeflate, protocol versioning, hold queue during restrictions, retry of refused sends, duplicate filter, test loopback, self-test transport.
-  - `Core/Version.lua`: HELLO handshake (login, joins, coalesced, replies), local warnings for older/newer/incompatible versions.
+  - `Core/Roster.lua`: group members as `Name-Realm`, class colors, connection state, unidentified members, channel choice (RAID/PARTY/INSTANCE_CHAT), fake members.
+  - `Core/Friends.lua`: the explicit, mutual LooserPiml friends list, online state, handshake state, and `Route()`, which decides for every message who may get it and how (group channel or whispers).
+  - `Core/Comm.lua`: AceComm prefix `LPiml`, AceSerializer + LibDeflate, protocol versioning, message scopes routed through Friends, drops messages from senders who aren't listed, hold queue during restrictions, retry of refused sends, duplicate filter, test loopback (test messages never go out later), self-test transport.
+  - `Core/Version.lua`: HELLO handshake only with listed friends (after login, when they come online or join, when added; per-friend cooldown), which also proves the friendship is mutual; local warnings for older/newer/incompatible versions.
   - `Core/TestMode.lua`: loopback, fake group (incl. outdated version), simulation registry, `/lp sim boss`, `/lp selftest`.
   - `Core/Slash.lua`: `/lp` and `/looserpiml` with a registry for module subcommands.
   - `Core/PlayerEvents.lua` (stage A): detection of the own player's death (incl. drowned), level-up, instance enter/leave, shared by Ticker and Stats via `LP_*` messages.
   - `Core/Util.lua` (stage A): localized GlobalStrings matching, money/duration formatting.
   - `Core/Options.lua` (stage A): settings registry + Blizzard Settings panel, confirmation dialogs.
   - `Core/Window.lua` (stage A): main window shell with tab registry, minimap button (LibDataBroker + LibDBIcon), Addon Compartment entry, footer version status.
-- **Ticker module**: level up, death (+ drowned), dungeon/raid enter/leave. Each client detects only its own events, shows them locally and broadcasts them. Center banner (queue, fade, class colors, configurable time/size/position, sound) + local chat line. Held during encounters and shown afterwards ("During the boss: …"). Per-type display filters. Session counters for the banner text; `/lp stats chat` prints the old text ranking.
-- **Stats module** (stage A): per-character event log (death, level-up with played time, quests, gold with source, rare loot, instances, boss kills/wipes, crafting/gathering/skill-ups, travel, duels, battlegrounds, honor) plus live counters (jumps, food/drink, group time per friend); rollup into daily buckets (30 days / 5000 events); aggregates per tonight / this week / all time; sharing of aggregates with friends (≤ 1 per 30 s, share setting), friends cache with last seen; Leaderboard tab with Hall of Fame (Death King, Fish Food, Gold Hoarder, Speedrunner) and ranking (deaths, gold looted, quests, level-ups).
-- **Tests**: 156 busted specs, all green, running the real addon + real libraries (incl. LibDBIcon) under Lua 5.1, including two clients talking to each other.
+  - `Core/FriendsPanel.lua`: the friends list UI (add by name, add from group, remove), as the Friends tab and as the settings page Options › AddOns › LooserPiml › Friends.
+- **Ticker module**: level up, death (+ drowned), dungeon/raid enter/leave. Each client detects only its own events, shows them locally and sends them to LooserPiml friends in the group. Center banner (queue, fade, class colors, configurable time/size/position, sound) + local chat line. Held during encounters and shown afterwards ("During the boss: …"). Per-type display filters. Session counters for the banner text; `/lp stats chat` prints the old text ranking.
+- **Stats module** (stage A): per-character event log (death, level-up with played time, quests, gold with source, rare loot, instances, boss kills/wipes, crafting/gathering/skill-ups, travel, duels, battlegrounds, honor) plus live counters (jumps, food/drink, chests, group time per friend); rollup into daily buckets (30 days / 5000 events); aggregates per tonight / this week / all time; sharing of aggregates with confirmed LooserPiml friends (≤ 1 per 30 s, share setting), stats cache per friend with last seen; Leaderboard tab with Hall of Fame (Death King, Fish Food, Gold Hoarder, Speedrunner) and ranking (deaths, gold looted, quests, level-ups).
+- **Tests**: 173 busted specs, all green, running the real addon + real libraries (incl. LibDBIcon) under Lua 5.1, with several clients talking to each other. The mock delivers group messages only to group members and whispers only to online players, and every single `SendAddonMessage` call in the suite is checked against the sender's friends list.
 - **Tooling**: `tools/fetch-libs.ps1`, `tools/link-addon.ps1` (junction created: `<WoW>\_classic_beta_\Interface\AddOns\LooserPiml` → repo), `tools/setup-test-env.ps1`, `tools/run-tests.ps1`.
 - **Distribution**: `.pkgmeta` (libs as git externals, pinned), GitHub Actions `tests.yml` (push/PR) and `release.yml` (tag `v*` → tests → BigWigsMods/packager → GitHub release + `release.json`).
 - **Published** (2026-10-11): public repo https://github.com/snoopjust/LooserPiml. Release **v0.1.0** built by CI (tests 78/78 green on Ubuntu, packager job green): `LooserPiml-v0.1.0-forever.zip` with all libraries embedded, `## Version: v0.1.0`, no dev files; `release.json` flavor `forever`, interface 16001. Known cosmetic issue: LibDeflate's docs/examples (~170 KB) are included in the zip.
@@ -34,9 +36,16 @@ Every feature is checked against these:
 2. Secret/protected values are never circumvented, derived or reconstructed. Every comparison or arithmetic on API data is preceded by `ns.IsSecret`; if secret, the value is dropped and the feature degrades (e.g. no "drowned" variant, unknown class → uncolored name, unknown encounter state → treated as restricted).
 3. No visible chat output to anyone. Sync is hidden addon messages via AceComm only. Display is local (own frame, `DEFAULT_CHAT_FRAME:AddMessage`). The test mock errors on any `SendChatMessage`.
 4. No automation of game actions.
-5. All traffic through ChatThrottleLib. Messages only on real events; HELLO coalesced (10 s cooldown); held queue capped (50), retries every 5 s with at most 5 attempts.
+5. All traffic through ChatThrottleLib. Messages only on real events; HELLO at most once per friend per 10 s; held queue capped (50), retries every 5 s with at most 5 attempts.
 6. Plain readable code, free, no ads, no donation requests.
 7. Debug/test mode shows blocked/forbidden actions and Lua errors immediately.
+8. **Communication only with the explicit, mutual LooserPiml friends list** (added 2026-10-12). Players without LooserPiml, or who aren't on the list, never receive anything from LooserPiml, not even hidden addon messages:
+   - Sending: only to listed friends. The group channel (PARTY/RAID/INSTANCE_CHAT) only if every other group member is listed (and may receive that message); otherwise individual WHISPER addon messages to listed friends who are online (connected group member, or online on the character friends list). Never GUILD, never Battle.net.
+   - No discovery broadcasts. The version handshake runs only with listed friends.
+   - Receiving: every message from a sender who isn't on the own list is dropped before it is decoded (mutual opt-in, like a friend request).
+   - Leaderboard, "friends online" and stats sync include only listed friends who answered the handshake.
+   - Test mode and sample friends never send anything to real players.
+   - Enforced in code by `Core/Friends.lua` (`Route`) and `Core/Comm.lua`; enforced in tests by a check on every send in every spec.
 
 ## Decisions
 
@@ -51,7 +60,7 @@ Every feature is checked against these:
 | Restriction handling | Hold if an encounter is active (our ENCOUNTER_START/END tracking or `C_InstanceEncounter.IsEncounterInProgress`) or `C_ChatInfo.InChatMessagingLockdown()`. Also hold and retry when AceComm reports `didSend == false`. Flush on `LP_ENCOUNTER_END`, `ADDON_RESTRICTION_STATE_CHANGED` (Inactive), `PLAYER_ENTERING_WORLD`, and a 5 s retry ticker | Covers the documented APIs plus the actual result codes, without relying on one signal |
 | "Late" marker | Messages held for an encounter carry `late = "encounter"`, so receivers show "During the boss: …". Other lockdowns carry `"lockdown"` and show "Earlier: …" | Receivers otherwise can't tell old news from new |
 | Banners during encounters | Held (own too), max 5 shown afterwards + "… and N more", with a 2 s watcher in case no end event arrives | Don't distract mid-fight |
-| Channel | INSTANCE_CHAT in finder groups, else RAID, else PARTY | Standard practice; INSTANCE_CHAT is a TODO(verify) |
+| Channel | INSTANCE_CHAT in finder groups, else RAID, else PARTY, but only when every other group member may receive the message (rule 8); otherwise whispers to friends | Standard practice; INSTANCE_CHAT is a TODO(verify) |
 | Test mode | Not saved (off after /reload). Sims only in test mode. Test events never touch all-time stats | Avoid "why does nothing reach my friend" and fake stats |
 | Dev builds | `@project-version@` → "dev", never compared, except in test mode, where dev = 1.0.0 so the warnings can be tried solo | Dev checkout playing with friends must not spam warnings |
 | Icons | Raid target textures instead of emoji | WoW fonts have no emoji glyphs |
@@ -64,19 +73,28 @@ Every feature is checked against these:
 | License | MIT, copyright "snoopjust" (in `LICENSE` and the TOC) | Confirmed 2026-10-11 |
 | Shared detection (stage A) | Death/level/instance detection moved from the Ticker into `Core/PlayerEvents` | Ticker and Stats need the same events; modules must not call each other |
 | Stats storage (stage A) | Per character inside the account-wide `LooserPimlDB` (`modules.Stats.chars["Name-Realm"]`) | Each client records only its own character; no extra SavedVariables file needed |
-| Periods (stage A) | "Tonight" = gaming day starting 06:00 local time; "this week" from Monday 06:00; "all time" = log + rollups | A session past midnight still counts as tonight; same rule on every client |
+| Periods (stage A) | "Tonight" = gaming day starting 06:00 local time; "this week" from Monday 06:00; "all time" = log + rollups | A session past midnight still counts as tonight; same rule on every client. 06:00 confirmed 2026-10-12 |
 | Log size (stage A) | Raw log keeps 30 days or 5000 events (whichever first); older events are rolled into daily buckets per type | Small SavedVariables, all-time totals stay exact |
 | Counters vs. log (stage A) | Jumps, food/drink, group time are counters in daily buckets, not log entries | Far too frequent for individual entries |
 | Played time per level (stage A) | Own session timer per character; a level counts only if we saw it start ("complete"); Speedrunner uses complete levels only | `RequestTimePlayed` prints to chat; partial levels would make the award meaningless |
 | Gold sources (stage A) | Hint from what just happened (quest, repair, flight, mail vs. AH sale mail) first, then the open window (+2 s grace), else "other" | `PLAYER_MONEY` has no reason attached |
-| Gathering (stage A) | Loot from a GameObject (`GetLootSourceInfo`) counts as gathered; fishing separately | No API says "this was a node"; chests also count (see open questions) |
+| Gathering (2026-10-12) | "Gathered" = profession gathering only: a loot window right after a Herb Gathering / Mining / Skinning cast (matched by localized spell name, all ranks), or fishing (`IsFishingLoot`) | Decided: chests don't count as gathered. No API says "this was a node", the cast before the loot window does |
+| Chests (2026-10-12) | Loot from any other GameObject with at least one non-quest item counts as `chestsOpened` (a counter, not shown in the UI yet). Nothing is counted if the cast before the loot window was secret | Decided: separate counter. Quest objects on the ground are GameObjects too; only-quest-item loot is skipped |
 | Zones discovered (stage A) | First time this character is seen in a zone/subzone since install | The game's exploration state isn't readable per subzone |
 | Duels and PvP (stage A) | Only recorded (result, opponent, opponent has LooserPiml); ranked handshake later (stage C) | As specified |
-| Sync (stage A) | Only aggregates (never the log), on login/join/change, ≤ 1 per 30 s, BULK priority, replace key so only the newest snapshot waits during a boss; only award-relevant timestamps sent | Keeps traffic to a couple of chunks at most twice a minute |
-| Friend (stage A) | Any LooserPiml user seen via HELLO or STATS in a group; cached with class, version, last seen | As specified |
+| Sync | Only aggregates (never the log), to confirmed friends online (scope "friends"): when a friend's handshake arrives and after changes, ≤ 1 per 30 s, BULK priority, replace key so only the newest snapshot waits during a boss; only award-relevant timestamps sent | 30 s confirmed 2026-10-12. Keeps traffic to a couple of chunks at most twice a minute |
+| Friend (2026-10-12) | Only players on the explicit LooserPiml friends list, added by name or from the group. Stored in `LooserPimlDB.friends` with added, last handshake, last seen, class, version. Max 40 | Decided: rule 8. Replaces the stage-A "anyone seen in a group" |
+| Mutual / handshake (2026-10-12) | A listed friend who answers our HELLO (or greets us) has listed us too: their client drops our messages otherwise and never answers. "Confirmed" lasts for the session and is forgotten when the friend goes offline; the next contact needs a fresh handshake | The only way to learn "mutual" without asking anyone who isn't listed |
+| Scopes (2026-10-12) | HELLO: listed friends ("handshake"). STATS: confirmed friends online ("friends"). TICK: confirmed friends in the group ("group"). A one-sided friend gets only HELLOs | The Ticker announces what happens in the group; stats also reach friends playing elsewhere |
+| Online (2026-10-12) | Connected group member (`UnitIsConnected`), or online on the character friends list (`C_FriendList.GetFriendInfo`). No Battle.net. Exception: a handshake reply may go to a friend who wrote to us within 30 s | Whispering someone offline makes the server print "No player named ..."; without the reply exception the handshake can't finish when only one side has the other on the friends list |
+| Group channel safety (2026-10-12) | Never used while a group member can't be identified (name loading or secret) | That member could be a stranger |
+| Routing time (2026-10-12) | Recipients are decided when a message really goes out, not when it is queued | A message held during a boss respects a friend removed or a stranger who joined meanwhile |
+| Test mode messages (2026-10-12) | Messages created in test mode are dropped if test mode is off by the time they would be flushed; the self-test's real transport is skipped in test mode; fake members can't be added to the friends list | Rule 8: test mode never reaches real players |
+| Friends UI (2026-10-12) | Friends tab in the main window and the settings page Options › AddOns › LooserPiml › Friends (a canvas page, linked from a "LooserPiml friends" section on the main page). A one-time chat hint when grouped with an empty list. `/lp friends` for power users | A list with a remove button per row needs its own frame; the Blizzard vertical layout can't change rows at runtime |
+| DB schema 3 (2026-10-12) | New top-level `friends`; the stage-A stats cache (`Stats.friends`, filled from anyone in the group) is dropped, received stats now live in `Stats.friendStats` | Nobody opted in to that data. The friends list starts empty on purpose |
 | Awards (stage A) | Highest value wins (lowest for Speedrunner), zero never wins; ties: whoever reached the value first, then name | As specified ("earlier achiever wins") |
 | Settings (stage A) | Registry in `Core/Options`; modules keep values in their own SavedVariables; Blizzard panel via proxy settings | Modules stay independent; panel always shows live values |
-| Window (stage A) | Generic shell with tab registry; only the Leaderboard tab now; footer version status from friends seen this session (`Version.known`) | Later tabs plug in; the version of offline friends may be outdated anyway |
+| Window (stage A) | Generic shell with tab registry; tabs Leaderboard and Friends; footer version status from friends heard from this session (`Version.known`) | Later tabs plug in; the version of offline friends may be outdated anyway |
 | Minimap (stage A) | LibDBIcon button + Addon Compartment via `.toc` fields (three intended globals) | As specified; the compartment calls functions by global name |
 | `/lp stats` (stage A) | Opens the window; `/lp stats chat` prints the old text ranking | As specified |
 | DB schema 2 (stage A) | Banner settings grouped under `Ticker.banner` (hold, size, sound, point); migration moves the v0.1.0 `Ticker.sound` | Old SavedVariables keep working |
@@ -95,14 +113,13 @@ First solo session on the Forever beta (2026-10-11):
 
 1. **Final addon name**: still the working title "LooserPiml".
 2. Results of the in-game checks (TESTING.md). In particular whether regular dungeons are "communication-restricted maps" (TODO #7). If they are, every dungeon event is delivered only after leaving. Then we should decide whether that's acceptable.
-3. **Chests count as "gathered"** (both are GameObjects). OK, or should chests be told apart (would need a heuristic)?
-4. **"Friends online" in the tooltip** counts friends in your group plus friends on your WoW friends list who are online. Friends only known via Battle.net are not counted (would need BNet APIs). Good enough?
-5. **06:00 as the start of a gaming day**: fits your evenings, or another hour?
-6. **Stats traffic**: while you are active in a group, one stats message (about 2 chunks) at most every 30 s. Fine, or rather every 60 s?
+3. **Ticker outside the group**: Ticker events (deaths, level-ups, dungeons) currently go only to friends in your group; stats also reach friends who are online elsewhere. Should friends outside the group see your banners too?
+
+Resolved 2026-10-12: chests are a separate counter (not gathered); communication only with the explicit, mutual friends list (no Battle.net); "tonight" starts at 06:00; stats at most every 30 s.
 
 ## Next steps
 
-1. **Stage A in-game test** (TESTING.md 2.6, TODO #26–44), then decide whether to tag **v0.2.0** (not tagged yet, waiting for your go).
+1. **Stage A in-game test** (TESTING.md 2.6 and 2.7, TODO #26–51), then decide whether to tag **v0.2.0** (not tagged yet, waiting for your go). Every friend has to add the others to their LooserPiml friends list first.
 2. Remaining v0.1.0 checks: sections 2.4/2.5 (drowning, dungeons, restrictions) and section 3 with a friend; WowUp install on a friend's PC (TODO #22).
 3. Later stages of the stats/UI work: Profiles tab, Tonight tab with evening recap, PvP tab, ranked duel handshake (stage C). The data for all of them is already being collected.
 4. Next modules, all built on Core (Comm handlers, `DB:GetModuleDB`, Roster, TestMode sims, Slash, Options, Window tabs):

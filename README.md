@@ -15,9 +15,11 @@ Group Bets are planned. See [STATUS.md](STATUS.md).
 LooserPiml only uses the official in-game Lua API. It never automates game
 actions and never writes into visible chat. Friends' clients talk to each
 other through hidden addon messages, which are throttled and paused while
-the game restricts them (boss encounters). If a value is protected
-("secret") the feature is skipped instead of worked around. Details are in
-[STATUS.md](STATUS.md#safety-rules).
+the game restricts them (boss encounters). LooserPiml talks **only to
+players on your LooserPiml friends list who added you too**: nobody else
+ever receives anything from it, not even a hidden message. If a value is
+protected ("secret") the feature is skipped instead of worked around.
+Details are in [STATUS.md](STATUS.md#safety-rules).
 
 ## For friends: install
 
@@ -44,17 +46,22 @@ tick "Load out of date AddOns" until a new release is out.
 
 ## Usage
 
-Nothing to configure: events show up as a banner in the middle of the screen
-and as a line in your chat window (only you see it).
+One thing to set up: **add your friends** (minimap button › tab
+**Friends**, by name or with one click from your group) and ask them to add
+you. LooserPiml shares nothing with anyone who isn't on your list or
+hasn't added you. Events then show up as a banner in the middle of the
+screen and as a line in your chat window (only you see it).
 
 - **Minimap button** (the skull): left-click opens the group stats window
-  with the leaderboard, right-click opens the settings, drag moves it.
-  Hover it for friends online, deaths tonight and the current Death King.
-- **Settings**: Esc › Options › AddOns › LooserPiml. Choose which messages
-  you see, move and resize the banner, turn stats sharing on or off.
+  with the leaderboard and your friends list, right-click opens the
+  settings, drag moves it. Hover it for friends online, deaths tonight and
+  the current Death King.
+- **Settings**: Esc › Options › AddOns › LooserPiml. Your friends list
+  (subpage Friends), which messages you see, banner position and size,
+  stats sharing on or off.
 - **Stats**: LooserPiml records your own character's evening (deaths, gold,
   quests, loot, duels, ...) on your computer and shares only the totals
-  with friends in your group, for the leaderboard.
+  with your LooserPiml friends, for the leaderboard.
 
 Slash commands are optional, for power users:
 
@@ -63,8 +70,9 @@ Slash commands are optional, for power users:
 | `/lp` | Help |
 | `/lp stats` | Opens the group stats window (`/lp stats chat`: text ranking in chat) |
 | `/lp options` | Opens the settings |
+| `/lp friends [add\|remove <name> \| list]` | Opens your LooserPiml friends list, or adds/removes/lists friends |
 | `/lp sound on\|off` | Banner sound (death: warning, level-up: fanfare) |
-| `/lp version` | Your version and the versions in your group |
+| `/lp version` | Your version and the versions of your friends in the group |
 | `/lp test on\|off` | Test mode: nothing is sent, fake group members appear |
 | `/lp sim <event> [name]` | In test mode: `death`, `drown`, `levelup`, `enter`, `leave`, `boss` |
 | `/lp selftest` | Checks libraries, encoding and the real message transport |
@@ -81,9 +89,11 @@ The repository root is the addon folder.
 
 ```
 LooserPiml.toc
-Core/       Init (modules, lifecycle), Events, DB, Log, Roster, Comm, Version, TestMode, Slash
+Core/       Init (modules, lifecycle), Events, DB, Log, Roster, Friends, PlayerEvents, Comm, Version,
+            TestMode, Slash, Options, Window, FriendsPanel
 Locales/    enUS.lua (all user-visible strings)
-Modules/Ticker/   Ticker (detect + broadcast + receive), Display (banner), Stats
+Modules/Ticker/   Ticker (announce + send + receive), Display (banner), Stats
+Modules/Stats/    Stats log, collectors, model, sync, leaderboard
 Libs/       fetched, not committed (tools/fetch-libs.ps1 or .pkgmeta externals)
 spec/       busted tests + WoW API mock
 tools/      link-addon.ps1, fetch-libs.ps1, setup-test-env.ps1, run-tests.ps1
@@ -163,12 +173,14 @@ end
 
 function Bets:OnEnable()
 	ns.Events:Register(self, "PLAYER_DEAD")                 -- game events
-	ns.Comm:RegisterHandler(self, "BET", self.OnBetMessage)  -- hidden group messages
+	ns.Comm:RegisterHandler(self, "BET", self.OnBetMessage)  -- hidden messages from LooserPiml friends
 	ns.TestMode:RegisterSim(self, { "bet" }, self.Simulate)  -- /lp sim bet Max
 end
 
 function Bets:OnBetMessage(data, sender, meta) ... end
--- send with ns.Comm:Send("BET", { ... })
+-- send with ns.Comm:Send("BET", { ... }, { scope = "group" })
+-- (scope "group": friends in the group, "friends": all confirmed friends online;
+-- Comm and Core/Friends decide who that is, never anyone off the friends list)
 ```
 
 Disabling a module unregisters its events and message handlers. If the saved

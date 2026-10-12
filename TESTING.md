@@ -29,22 +29,32 @@ error. Addon messages must be 255 bytes or less and contain no NUL. Every
 test fails if a Lua error reached any client's error handler. A hygiene test
 fails if the addon leaks globals.
 
+The mock server behaves like the real one where the communication rule is
+concerned: a group message reaches only the sender's group members (plus
+the echo), a whisper reaches only an online player, and whispering anyone
+else puts "No player named ..." into the sender's chat. Every test checks
+**every single `SendAddonMessage` call** of every client against the
+sender's LooserPiml friends list at the moment of sending (whisper target
+listed; every member of the group listed for a group message; nothing at all
+in test mode) and fails on any "No player named" line.
+
 Covered:
 
 | Area | Spec |
 |---|---|
 | Loading in .toc order, lifecycle, module enable/disable, DB migrations, event isolation, blocked-action logging, slash commands, self-test (incl. timeout and lockdown), secret values from Roster/encounter APIs | `core_spec.lua` |
-| Serialize/compress roundtrip (all byte values), multi-chunk transport between two clients, RAID/solo channel choice, echo/duplicate/protocol filtering, hold queue + flush around encounters and lockdown, retry of refused sends, give-up, stale drop, queue cap, test-mode loopback | `comm_spec.lua` |
-| Version parse/compare, login handshake, outdated/newer warnings (once), HELLO reply rules, coalescing, protocol mismatch, dev builds, fake group versions | `version_spec.lua` |
+| Serialize/compress roundtrip (all byte values), multi-chunk transport between two clients, RAID channel choice and "nobody" without friends, echo/duplicate/protocol filtering, hold queue + flush around encounters and lockdown, retry of refused sends, give-up, stale drop, queue cap, test-mode loopback | `comm_spec.lua` |
+| Version parse/compare, login handshake, outdated/newer warnings (once), HELLO reply rules, greeting only listed friends who join (group channel vs. whisper, cooldown), protocol mismatch, dev builds, fake group versions | `version_spec.lua` |
+| Friends list: name parsing, add/remove/persist, Friends tab (add by name, add from group without fake members, remove), settings page, `/lp friends`, empty-list hint. Communication rule: a group with one non-listed member gets zero PARTY/RAID messages (party and raid), nothing reaches a non-listed player in any code path (ticker, stats, version check, encounter queue flush, roster join, friends list update, self-test), messages from non-listed senders are dropped, removing a friend stops all traffic at once (held messages included), one-sided friends get only the handshake, whispers only to friends online (friends list, offline → handshake forgotten), no group channel with an unidentified member, no whispers to offline members, test mode never sends | `friends_spec.lua` |
 | Stats counting, test events excluded from all-time, ranking, Death King report, persistence across reload | `stats_spec.lua` |
 | Death/level-up/enter/leave detection, duplicate deaths, drowning (incl. event order, secret values), corpse runs, receiving + sanitizing, encounter hold + "During the boss", `/lp sim` → loopback → receive → stats → display, two-client end-to-end, banner sound | `ticker_spec.lua` |
 | Localized format strings → patterns (positional args, secret text), money/duration formatting | `util_spec.lua` |
 | Gaming day/week periods (06:00 boundary), aggregation per event type, merge, rollup + cap without changing totals, aggregation per period, sanitizing received aggregates | `stats_model_spec.lua` |
-| Recording per event type with mocked events: death, level-up (played time), quests, instances, boss kills/wipes, money sources (merchant, repair, loot grace, mail, AH mail, flight, quest), travel, jumps, food/drink, group time, rare loot, crafting, gathering, skill-ups, duels, battlegrounds, honor; collect off; compaction; simulated events never recorded | `stats_collect_spec.lua` |
-| Sync: exchange on login/changes, ≤ 1 broadcast per 30 s, share off = nothing sent, staleness of tonight/week, cache survives reload (offline friends), hostile payloads, boss-fight queue with newest snapshot only, message size, sample friends | `stats_sync_spec.lua` |
+| Recording per event type with mocked events: death, level-up (played time), quests, instances, boss kills/wipes, money sources (merchant, repair, loot grace, mail, AH mail, flight, quest), travel, jumps, food/drink, group time with friends, rare loot, crafting, gathering (herb, ore, skinning, fishing), chests separately (quest objects excluded, secret casts not guessed), skill-ups, duels, battlegrounds, honor; collect off; compaction; simulated events never recorded | `stats_collect_spec.lua` |
+| Sync: exchange after the handshake and on changes, ≤ 1 broadcast per 30 s, share off = nothing sent, staleness of tonight/week, cache survives reload (offline friends), hostile payloads, boss-fight queue with newest snapshot only, message size, sample friends (never on the real list) | `stats_sync_spec.lua` |
 | Awards incl. ties and empty data, ranking rows and bar fractions, formatting, ranking with real synced data | `leaderboard_spec.lua` |
 | Option defaults, v0.1.0 → v0.2.0 migration, ticker filters, own events, boss recap, banner time/size/move/reset, Blizzard panel build with live proxy values, reset confirmation, testing buttons | `options_spec.lua` |
-| Window open/ESC/toggle/position, leaderboard contents and selectors, minimap button clicks, tooltip lines, minimap hide/show, Addon Compartment callbacks, footer version status | `window_spec.lua` |
+| Window open/ESC/toggle/position, tabs (Leaderboard, Friends), leaderboard contents and selectors, minimap button clicks, tooltip lines, minimap hide/show, Addon Compartment callbacks, footer version status | `window_spec.lua` |
 
 ---
 
@@ -69,7 +79,8 @@ Dev setup: run `tools\fetch-libs.ps1` once. The junction from
   - `[OK] Loopback dispatch`
   - `[INFO] Client APIs: ...`. **Copy this line into STATUS.md.** It answers several TODOs below.
   - Solo: `[INFO] Real transport: not tested, you are not in a group`. That's expected: the Forever server rejects whispers to yourself ("No player named X is currently playing"), so there is no solo transport test.
-  - In a group: `[OK] Real transport: echo received after X s, payload intact`. This sends a multi-chunk message on the group channel and checks that the server echoes it back.
+  - In a group where everyone is on your LooserPiml friends list: `[OK] Real transport: echo received after X s, payload intact`. This sends a multi-chunk message on the group channel and checks that the server echoes it back.
+  - In a group with anyone who is not on your list: `[INFO] Real transport: not tested, someone in your group is not on your LooserPiml friends list`. In test mode: `[INFO] ... not tested in test mode`. Both are correct (the rule: nothing reaches players who aren't listed, nothing leaves the client in test mode).
 - [ ] If the echo times out in a group, note the exact message; check section 3 as well.
 
 ### 2.3 Test mode + simulations
@@ -111,10 +122,10 @@ saved, so a restart clears them. TODO(verify in-game): do they exist on Forever?
 - [ ] Tooltip: "LooserPiml", click hints, friends online with LooserPiml, deaths tonight, Death King.
 - [ ] Window: title "LooserPiml · Group stats", close button, ESC closes it, it can be dragged and stays where it was after `/reload`. Colors look like the mockup (dark brown, bronze borders, gold headings), text is readable.
 - [ ] `/lp test on`, then Settings › Testing › "Fill with sample friends": the leaderboard shows four sample friends; period buttons (Tonight / This week / All time) and metric buttons (Deaths / Gold looted / Quests / Level-ups) switch the content; bars look right; names are class-colored.
-- [ ] Solo without test mode: the cards say "No one yet" (or show you), with the hint to group up.
+- [ ] Solo without test mode: the cards say "No one yet" (or show you), with the hint to add friends in the Friends tab.
 
 **Settings (Esc › Options › AddOns › LooserPiml)**
-- [ ] The category exists with the sections Ticker messages, Banner, Stats, Minimap, Testing.
+- [ ] The category exists with the sections LooserPiml friends, Ticker messages, Banner, Stats, Minimap, Testing, and a subpage **Friends** (see 2.7).
 - [ ] Each Ticker checkbox hides its message type (try with `/lp sim ...` in test mode); "Also show my own events" off hides only your own.
 - [ ] Banner: display time and size sliders change the next banner; "Unlock / lock" shows a sample banner you can drag, locking makes it click-through again; "Reset banner position" puts it back. Position is kept after `/reload`.
 - [ ] Stats: "Reset my stats" asks for confirmation first; "No" keeps everything.
@@ -125,25 +136,54 @@ saved, so a restart clears them. TODO(verify in-game): do they exist on Forever?
 - [ ] Death, level-up (`played` close to `/played` for that level), quest turn-in (with XP and money).
 - [ ] Gold: loot coins from a mob (`loot`), sell and buy at a vendor (`vendor_sell` / `vendor_buy`), "Repair all" (`repair`), take gold from a normal mail (`mail`) and from an auction house sale (`ah_mail`), pay a trainer (`trainer`), take a flight (`flight`).
 - [ ] Loot a blue/purple item: `loot_rare` with the right quality. Grey/white/green items are not recorded.
-- [ ] Craft something (`profession` crafted), gather a herb/ore node (`gathered`), fish (`gathered`, source fishing), get a skill-up (`skillup`; for a profession `profession = true`, for weapon/defense skills `false`).
+- [ ] Craft something (`profession` crafted), gather a herb and an ore node and skin a mob (`gathered`, source herb / mining / skinning), fish (`gathered`, source fishing), get a skill-up (`skillup`; for a profession `profession = true`, for weapon/defense skills `false`).
+- [ ] Open a chest: **not** recorded as gathered; no log line (it's a counter): check `/dump LooserPimlDB.modules.Stats.chars` → today's bucket has `chestsOpened`. Picking up a quest object from the ground (only quest items in the loot) does not count.
 - [ ] New subzone, flight path, hearthstone are recorded; jumping counts only real jumps (not swimming up or pressing in mid-air); eating and drinking are counted.
 - [ ] Duel a friend: win, lose and flee once each; only your own duels are recorded, with the opponent's name.
 - [ ] Battleground: joined, finished (won/lost, your killing blows etc.), and leaving early counts as deserted. Honor snapshot after honor changes.
 - [ ] No `[Blocked action]` / `[Forbidden action]` line for LooserPiml during any of this, especially while jumping (post-hook on a protected function).
 
-**Sync** (with a friend, see section 3)
-- [ ] After grouping, the friend appears on your leaderboard within about 10 s; changes arrive within about 30 s.
+**Sync** (with a friend, see section 3; you both have to add each other first, see 2.7)
+- [ ] After both added each other, the friend appears on your leaderboard within about 10 s; changes arrive within about 30 s.
 - [ ] After the friend logs out and you `/reload`, they are still listed, marked offline.
 - [ ] Settings › Stats › "Share my stats" off on one side: the other side stops receiving updates.
+
+### 2.7 LooserPiml friends and the communication rule
+
+LooserPiml only talks to players on your LooserPiml friends list who added
+you too. Nobody else may receive anything from it, not even hidden addon
+messages.
+
+**Solo**
+- [ ] Minimap button › window › tab **Friends**: explanation text, "Add by name", "Add from group", "Your list (0/40)", "Nobody yet".
+- [ ] Type a name (e.g. a friend's character) and press Enter or "Add": it appears in the list with its class color if known, status "offline (or not in your group / WoW friends list)". "Remove" takes it off again.
+- [ ] Invalid input ("123", "a b") shows "That is not a character name"; your own name shows "That is you"; a second add shows "already on your list".
+- [ ] Esc › Options › AddOns › LooserPiml: section "LooserPiml friends" with a "Manage" button that opens the subpage **Friends** (same list, same buttons). Typing in its edit box works (no key bindings fire while typing); Esc leaves the box.
+- [ ] `/reload`: the list is still there.
+- [ ] Test mode on: the fake members (Max, Lena, Jo, Kim) are **not** offered under "Add from group".
+
+**In a group with a stranger** (anyone without LooserPiml, e.g. a random group)
+- [ ] With an empty list: one chat line "You are in a group, but your LooserPiml friends list is empty ...", once per session. Nothing else.
+- [ ] `/lp debug on`, die once: the debug log has **no** "Holding"/"Flushed" lines and nothing about sending. `/lp selftest` says "not tested, someone in your group is not on your LooserPiml friends list".
+
+**With a friend who runs LooserPiml** (section 3 as well)
+- [ ] Only you add the friend: their status is "online, waiting for them to add you". They see nothing from you (no banner, no leaderboard entry), and you see nothing from them.
+- [ ] The friend adds you too: within a few seconds both lists say "connected", the leaderboard shows each other, `/lp version` shows the other's version.
+- [ ] A third player in the group who is not on your list (with or without LooserPiml): you and your friend still see each other's banners (whispers instead of the group channel). If the third player runs LooserPiml with `/lp debug on`, their `/lp log` shows nothing received from you.
+- [ ] Remove the friend: from now on they get nothing from you (their banners for your deaths stop at once), and their messages to you are ignored.
+- [ ] Not grouped, but on each other's WoW friends list (Social › Friends): stats still arrive (leaderboard updates); Ticker banners only come from friends in your group.
 
 ---
 
 ## 3. Two clients (15 minutes with one friend)
 
 Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
+**First add each other** to the LooserPiml friends list (minimap button ›
+Friends, or "Add from group" once grouped). Without that, LooserPiml sends
+nothing.
 
 1. **Handshake (2 min)**
-   - [ ] Invite the friend. Within ~5–10 s `/lp version` on both sides shows the other's version, not "no reply".
+   - [ ] Invite the friend. Within ~5–10 s the Friends tab shows "connected" on both sides and `/lp version` shows the other's version, not "no reply".
    - [ ] One of you on an older release (or a dev build vs. a release): only the newer side sees "runs an older LooserPiml", the older side sees "has a newer LooserPiml". Each warning appears once.
 2. **Broadcast (5 min)**
    - [ ] Friend dies. You see the banner with their class color, plus the chat line. They see it once, not twice.
@@ -199,7 +239,7 @@ Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
 | 30 | `TakeInboxMoney`/`AutoLootMailItem` post-hooks; `GetInboxInvoiceInfo(index)` still returns "seller" in the post-hook (AH mail) | Section 2.6 | |
 | 31 | Coin loot money arrives within 2 s of `LOOT_CLOSED` (window grace) | Section 2.6 | |
 | 32 | Loot strings `LOOT_ITEM_SELF(_MULTIPLE)`, `LOOT_ITEM_PUSHED_SELF(_MULTIPLE)`, `LOOT_ITEM_CREATED_SELF(_MULTIPLE)` match; `C_Item.GetItemQualityByID(link)` works | Section 2.6 | |
-| 33 | `GetLootSourceInfo(1)` gives "GameObject-..." for herb/ore nodes; `IsFishingLoot` exists | Section 2.6 | |
+| 33 | `GetLootSourceInfo(1)` gives "GameObject-..." for chests; `IsFishingLoot` exists | Section 2.6 | |
 | 34 | `SKILL_RANK_UP` + `CHAT_MSG_SKILL`; `GetProfessions`/`GetProfessionInfo` exist (profession flag) | Section 2.6 | Skill-up messages exist (Defense skill-up seen 2026-10-11) |
 | 35 | `DUEL_WINNER_KNOCKOUT`/`DUEL_WINNER_RETREAT` with positional arguments; names without realm for the same realm | Section 2.6 | |
 | 36 | `PVP_MATCH_COMPLETE` winner is a faction index (0 Horde / 1 Alliance); `C_PvP.GetScoreInfo` readable after the match | Section 2.6 | |
@@ -211,3 +251,10 @@ Both: same LooserPiml version (from WowUp or the zip), `/lp debug on`.
 | 42 | Played time per level from our session timer is close to `/played` | Level up once with the addon running from the start of the level | |
 | 43 | STATS sync between two clients (about 2 chunks, BULK priority) arrives; leaderboard shows the friend; offline after relog | Section 2.6 / 3 | |
 | 44 | `StaticPopupDialogs`/`StaticPopup_Show` confirmation dialog works | Section 2.6 (reset my stats) | |
+| 45 | Gathering casts: spells 2366 "Herb Gathering", 2575 "Mining", 8613 "Skinning" exist; gathering fires `UNIT_SPELLCAST_SUCCEEDED` (not secret) shortly before `LOOT_OPENED`; `GetNumLootItems`/`GetLootSlotInfo` (7th return `isQuestItem`) work | Section 2.6 (gathering, chests) | |
+| 46 | WHISPER addon messages between friends arrive, incl. multi-chunk STATS; the whisper target "Name" works for the own realm | Section 2.7 with a third player in the group | |
+| 47 | `UnitIsConnected` reports offline group members; `UNIT_CONNECTION` fires when they go offline/come back | A friend logs out while grouped: no "No player named" line on your side | |
+| 48 | `FRIENDLIST_UPDATE` fires when a character friend logs in/out; `C_FriendList.GetFriendInfo("Name")` works for the own realm | Section 2.7 (not grouped, on each other's friends list) | |
+| 49 | Settings subpage via `Settings.RegisterCanvasLayoutSubcategory` renders; `Settings.OpenToCategory(subcategory:GetID())` opens it; plain `EditBox` + `BackdropTemplate` takes typing | Section 2.7 (solo) | |
+| 50 | Cross-realm friends ("Name-Realm") on Forever: whisper and friends-list lookup work, if Forever has connected realms at all | Only if a friend plays on another realm | |
+| 51 | Nothing reaches a player who isn't on the list: a non-listed LooserPiml user in the group receives nothing (their debug log stays silent about you) | Section 2.7 (third player) | |
