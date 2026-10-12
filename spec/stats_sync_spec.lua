@@ -30,7 +30,7 @@ describe("Stats sync", function()
 		local clients = H.group({ { name = "Me", class = "HUNTER" }, { name = "Max", class = "WARRIOR" } })
 		local me, max = clients[1], clients[2]
 		me:Advance(5) -- login broadcast (8 s after login)
-		local friend = stats(me).db.friends["Max-TestRealm"]
+		local friend = stats(me).db.friendStats["Max-TestRealm"]
 		assert.is_table(friend)
 		assert.are.equal("WARRIOR", friend.class)
 		assert.is_table(friend.stats.all)
@@ -38,7 +38,7 @@ describe("Stats sync", function()
 		die(max)
 		die(max)
 		me:Advance(35) -- Max's debounced broadcast
-		friend = stats(me).db.friends["Max-TestRealm"]
+		friend = stats(me).db.friendStats["Max-TestRealm"]
 		assert.are.equal(2, friend.stats.tonight.n.deaths)
 		assert.are.equal(2, stats(me):GetFriendAggregate(friend, "tonight").n.deaths)
 		H.assertNoErrors(me)
@@ -46,7 +46,7 @@ describe("Stats sync", function()
 	end)
 
 	it("broadcasts at most once per 30 s, however many changes happen", function()
-		local mock = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+		local mock = H.client({ group = { { name = "Max", class = "WARRIOR" } }, confirmed = { "Max" } })
 		mock:Advance(5)
 		local before = #statsMessages(mock)
 		for _ = 1, 10 do
@@ -59,7 +59,7 @@ describe("Stats sync", function()
 	end)
 
 	it("sends nothing at all with 'share my stats' off, but still receives", function()
-		local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+		local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, confirmed = { "Max", "Lena" } })
 		stats(mock).db.share = false
 		mock.sent = {}
 		die(mock)
@@ -71,7 +71,7 @@ describe("Stats sync", function()
 		local payload = { mv = 1, day = "x", week = "y", class = "MAGE", p = { all = { n = { deaths = 4 } } } }
 		local text = ns.Comm:Encode({ v = 1, t = "STATS", s = 3, id = 1, d = payload })
 		mock:Fire("CHAT_MSG_ADDON", "LPiml", text, "PARTY", "Lena-TestRealm")
-		assert.are.equal(4, stats(mock).db.friends["Lena-TestRealm"].stats.all.n.deaths)
+		assert.are.equal(4, stats(mock).db.friendStats["Lena-TestRealm"].stats.all.n.deaths)
 	end)
 
 	it("treats a friend's 'tonight'/'week' from an earlier day/week as empty", function()
@@ -114,7 +114,7 @@ describe("Stats sync", function()
 	end)
 
 	it("sanitizes garbage and hostile payloads", function()
-		local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+		local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
 		local function send(data, id)
 			local text = ns.Comm:Encode({ v = 1, t = "STATS", s = 9, id = id, d = data })
 			mock:Fire("CHAT_MSG_ADDON", "LPiml", text, "PARTY", "Max-TestRealm")
@@ -122,7 +122,7 @@ describe("Stats sync", function()
 		send("nope", 1)
 		send({ p = "nope" }, 2)
 		send({ class = "|cffff0000X", level = 1e9, p = { all = { n = { deaths = -5, quests = 3 } } } }, 3)
-		local friend = stats(mock).db.friends["Max-TestRealm"]
+		local friend = stats(mock).db.friendStats["Max-TestRealm"]
 		assert.are.equal("WARRIOR", friend.class) -- from the roster, the bogus class was dropped
 		assert.is_nil(friend.level)
 		assert.are.same({ quests = 3 }, friend.stats.all.n)
@@ -130,7 +130,7 @@ describe("Stats sync", function()
 	end)
 
 	it("holds stats during a boss fight and sends only the newest snapshot afterwards", function()
-		local mock = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+		local mock = H.client({ group = { { name = "Max", class = "WARRIOR" } }, confirmed = { "Max" } })
 		mock:Advance(40)
 		mock.sent = {}
 		mock:StartEncounter()
@@ -174,7 +174,8 @@ describe("Stats sync", function()
 			assert.is_true(stats(mock):FillSampleFriends())
 			local participants = stats(mock):GetParticipants("tonight")
 			assert.are.equal(5, #participants) -- me + Max, Lena, Jo, Kim
-			assert.are.same({}, stats(mock).db.friends)
+			assert.are.same({}, stats(mock).db.friendStats)
+			assert.are.same({}, mock.env.LooserPimlDB.friends) -- never on the real friends list
 			mock.ns.TestMode:Disable()
 			assert.are.equal(1, #stats(mock):GetParticipants("tonight"))
 		end)

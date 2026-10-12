@@ -1,15 +1,18 @@
--- Sharing aggregates with friends, and the friends cache.
+-- Sharing aggregates with LooserPiml friends, and their stats cache.
 --
--- Each client broadcasts only its own aggregates (tonight / week / all
--- time), never the raw event log: on login, when someone joins the group,
--- and after changes (debounced, at most once per BROADCAST_INTERVAL). The
--- "share my stats" setting turns broadcasting off; receiving still works.
--- Restrictions (boss fights) are handled by Comm's hold queue; a newer
--- snapshot replaces an older one that is still waiting there.
+-- Each client sends only its own aggregates (tonight / week / all time),
+-- never the raw event log, and only to listed friends who answered the
+-- handshake this session (Comm scope "friends", see Core/Friends.lua):
+-- when a friend's handshake arrives and after changes (debounced, at most
+-- once per BROADCAST_INTERVAL). The "share my stats" setting turns sending
+-- off; receiving still works. Restrictions (boss fights) are handled by
+-- Comm's hold queue; a newer snapshot replaces an older one that is still
+-- waiting there, and recipients are checked again when it is flushed.
 --
--- A "friend" is any LooserPiml user we have been grouped with (seen via
--- HELLO or STATS). Their latest aggregates are kept in SavedVariables with
--- a timestamp, so the leaderboard can show friends who are offline.
+-- Received aggregates are cached per friend in SavedVariables
+-- (db.friendStats) with a timestamp, so the leaderboard can show friends
+-- who are offline. The leaderboard lists only friends on the friends list
+-- who answered a handshake at least once.
 --
 -- STATS payload:
 --   { mv = Model.VERSION, day = "2026-10-11", week = "2026-10-05",
@@ -23,7 +26,6 @@ local Stats = ns:GetModule("Stats")
 
 Stats.SYNC_MSG = "STATS"
 Stats.BROADCAST_INTERVAL = 30 -- seconds, minimum between two broadcasts
-Stats.LOGIN_BROADCAST_DELAY = 8 -- after HELLO (5 s) has gone out
 
 Stats.fakeFriends = {} -- test mode only, never saved
 
@@ -56,7 +58,7 @@ function Stats:BuildSyncPayload()
 end
 
 function Stats:CanBroadcast()
-	return self:IsEnabled() and self.db.share ~= false and ns.Roster:GetChannel() ~= nil
+	return self:IsEnabled() and self.db.share ~= false and ns.Friends:HasRecipients("friends")
 end
 
 -- Sends now, unless the last broadcast was less than BROADCAST_INTERVAL
@@ -84,7 +86,7 @@ function Stats:RequestBroadcast()
 	-- (now, or later when a held one is flushed after a boss fight). While
 	-- held, queuing counts too, so a fight full of changes doesn't rebuild
 	-- the snapshot on every single one.
-	local result = ns.Comm:Send(self.SYNC_MSG, self:BuildSyncPayload(), "BULK", self.SYNC_MSG)
+	local result = ns.Comm:Send(self.SYNC_MSG, self:BuildSyncPayload(), { scope = "friends", prio = "BULK", key = self.SYNC_MSG })
 	if result == "queued" then
 		self.lastBroadcast = now
 	end
@@ -95,9 +97,9 @@ end
 -- Receiving
 ----------------------------------------------------------------------
 
--- Friend entry (created on first contact).
+-- Stats cache entry of a friend (created on their first STATS message).
 function Stats:NoteFriend(name, store)
-	store = store or self.db.friends
+	store = store or self.db.friendStats
 	local friend = store[name]
 	if not friend then
 		friend = {}
@@ -105,27 +107,17 @@ function Stats:NoteFriend(name, store)
 	end
 	friend.lastSeen = time()
 	friend.class = friend.class or ns.Roster:GetClass(name)
-	local known = ns.Version.known[name]
-	if known then
-		friend.version = known.version
-	end
 	return friend
 end
 
-function Stats:OnHello(_, sender, meta)
-	if meta.test then
-		return
-	end
-	self:NoteFriend(sender)
-	ns.Events:Fire("LP_FRIENDS_CHANGED", sender)
-end
-
+-- Comm only delivers STATS from listed friends (everything else is dropped
+-- before it gets here), or simulated ones in test mode.
 function Stats:OnStatsMessage(data, sender, meta)
 	if type(data) ~= "table" or type(data.p) ~= "table" then
 		return
 	end
 	local Model = self.Model
-	local friend = self:NoteFriend(sender, meta.test and self.fakeFriends or self.db.friends)
+	local friend = self:NoteFriend(sender, meta.test and self.fakeFriends or self.db.friendStats)
 	friend.class = cleanClass(data.class) or friend.class
 	friend.level = type(data.level) == "number" and data.level >= 1 and data.level <= 1000 and math.floor(data.level) or friend.level
 	friend.day = type(data.day) == "string" and data.day:sub(1, 10) or nil
@@ -155,23 +147,9 @@ function Stats:GetFriendAggregate(friend, period)
 	return stats[period]
 end
 
--- In the group right now, or online per the character friends list.
-function Stats:IsFriendOnline(name)
-	if ns.Roster.members[name] then
-		return true
-	end
-	local getInfo = C_FriendList and C_FriendList.GetFriendInfo
-	if getInfo then
-		local info = getInfo(ns.Roster:Short(name))
-		if type(info) == "table" and not ns.IsSecret(info.connected) and info.connected then
-			return true
-		end
-	end
-	return false
-end
-
--- Everyone on the leaderboard for a period: me, cached friends, and (in
--- test mode) sample friends. { name, class, agg, isSelf, online, lastSeen }
+-- Everyone on the leaderboard for a period: me, listed friends who
+-- answered a handshake at least once (online or not), and (in test mode)
+-- sample friends. { name, class, agg, isSelf, online, lastSeen }
 function Stats:GetParticipants(period)
 	local list = {
 		{
@@ -182,37 +160,38 @@ function Stats:GetParticipants(period)
 			online = true,
 		},
 	}
-	local function addFrom(store, fake)
-		for name, friend in pairs(store) do
-			if not ns.Roster:IsPlayer(name) then
-				list[#list + 1] = {
-					name = name,
-					class = friend.class,
-					agg = self:GetFriendAggregate(friend, period),
-					online = fake or self:IsFriendOnline(name),
-					lastSeen = friend.lastSeen,
-					version = friend.version,
-					fake = fake,
-				}
-			end
+	for name, entry in pairs(ns.Friends:GetDB()) do
+		if entry.handshake and not ns.Roster:IsPlayer(name) then
+			local cached = self.db.friendStats[name]
+			list[#list + 1] = {
+				name = name,
+				class = (cached and cached.class) or entry.class,
+				agg = self:GetFriendAggregate(cached, period),
+				online = ns.Friends:IsOnline(name),
+				lastSeen = (cached and cached.lastSeen) or entry.lastSeen,
+				version = entry.version,
+			}
 		end
 	end
-	addFrom(self.db.friends, false)
 	if ns.TestMode:IsEnabled() then
-		addFrom(self.fakeFriends, true)
+		for name, friend in pairs(self.fakeFriends) do
+			list[#list + 1] = {
+				name = name,
+				class = friend.class,
+				agg = self:GetFriendAggregate(friend, period),
+				online = true,
+				lastSeen = friend.lastSeen,
+				fake = true,
+			}
+		end
 	end
 	return list
 end
 
--- Friends (with LooserPiml) online right now, for the minimap tooltip.
+-- Friends online right now who answered the handshake, for the minimap
+-- tooltip.
 function Stats:CountOnlineFriends()
-	local count = 0
-	for name in pairs(self.db.friends) do
-		if not ns.Roster:IsPlayer(name) and self:IsFriendOnline(name) then
-			count = count + 1
-		end
-	end
-	return count
+	return ns.Friends:CountOnlineConfirmed()
 end
 
 ----------------------------------------------------------------------
@@ -272,27 +251,18 @@ end
 
 function Stats:EnableSync()
 	ns.Comm:RegisterHandler(self, self.SYNC_MSG, self.OnStatsMessage)
-	ns.Comm:RegisterHandler(self, ns.Version.MSG, self.OnHello)
 	ns.Events:Register(self, "LP_STATS_CHANGED", function()
+		self:RequestBroadcast()
+	end)
+	-- A friend answered the handshake (after login, joining the group or
+	-- coming online): they get our current stats (still at most once per
+	-- BROADCAST_INTERVAL, to everyone confirmed).
+	ns.Events:Register(self, "LP_FRIEND_CONFIRMED", function()
 		self:RequestBroadcast()
 	end)
 	ns.Events:Register(self, "LP_COMM_SENT", function(_, _, msgType)
 		if msgType == self.SYNC_MSG then
 			self.lastBroadcast = GetTime()
 		end
-	end)
-	ns.Events:Register(self, "LP_ROSTER_CHANGED", function(_, _, joined, _, isFake)
-		if isFake then
-			return
-		end
-		for _, name in ipairs(joined or {}) do
-			if not ns.Roster:IsPlayer(name) then
-				self:RequestBroadcast()
-				return
-			end
-		end
-	end)
-	C_Timer.After(self.LOGIN_BROADCAST_DELAY, function()
-		self:RequestBroadcast()
 	end)
 end

@@ -220,14 +220,13 @@ describe("Stats collectors", function()
 	end)
 
 	describe("group time", function()
-		it("counts time grouped, in total and per friend who runs LooserPiml", function()
-			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" }, { name = "Bob", class = "MAGE" } } })
-			ns.Version.known["Max-TestRealm"] = { version = "v0.2.0", protocol = 1 }
+		it("counts time grouped, in total and per LooserPiml friend (handshake answered)", function()
+			local mock = H.client({ group = { { name = "Max", class = "WARRIOR" }, { name = "Bob", class = "MAGE" } }, confirmed = { "Max" } })
 			mock:Advance(130)
 			local agg = today(mock)
 			assert.is_true(agg.n.groupSeconds >= 120, tostring(agg.n.groupSeconds))
 			assert.is_true(agg.groupWith["Max-TestRealm"] >= 120)
-			assert.is_nil(agg.groupWith["Bob-TestRealm"]) -- no LooserPiml
+			assert.is_nil(agg.groupWith["Bob-TestRealm"]) -- not a LooserPiml friend
 		end)
 	end)
 
@@ -322,8 +321,7 @@ describe("Stats collectors", function()
 
 	describe("pvp", function()
 		it("records only own duels with result, opponent and whether they run LooserPiml", function()
-			local mock, ns = H.client()
-			ns.Version.known["Max-TestRealm"] = { version = "v0.2.0", protocol = 1 }
+			local mock = H.client({ confirmed = { "Max" } })
 			mock:Fire("CHAT_MSG_SYSTEM", "Me has defeated Max in a duel")
 			mock:Fire("CHAT_MSG_SYSTEM", "Me has fled from Bob in a duel")
 			mock:Fire("CHAT_MSG_SYSTEM", "Bob has fled from Me in a duel")

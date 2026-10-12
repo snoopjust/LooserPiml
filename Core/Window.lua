@@ -2,8 +2,9 @@
 -- entry, so friends never need slash commands.
 --
 -- The window is generic: modules register tabs (ns.Window:RegisterTab) and
--- minimap-tooltip lines (ns.Window:AddTooltipProvider). This stage has one
--- tab (Leaderboard, from the Stats module); Profiles/PvP/Tonight come later.
+-- minimap-tooltip lines (ns.Window:AddTooltipProvider). Tabs now:
+-- Leaderboard (Stats module) and Friends (Core/FriendsPanel.lua);
+-- Profiles/PvP/Tonight come later.
 --
 -- Look (approved mockup): dark brown background, bronze borders, gold
 -- headings, class-colored names, the game's own fonts, no emoji.

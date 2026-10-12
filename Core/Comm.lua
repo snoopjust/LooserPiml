@@ -1,8 +1,16 @@
--- Hidden addon messages between group members (never visible chat).
+-- Hidden addon messages between LooserPiml friends (never visible chat).
+--
+-- Who: only players on the explicit, mutual LooserPiml friends list
+-- (Core/Friends.lua). Every outgoing message has a scope; Friends:Route
+-- decides, at the moment it is really sent, between the group channel
+-- (only if every other group member may receive it) and individual
+-- whispers to online friends. Incoming messages from anyone who isn't on
+-- the list are dropped unread.
 --
 -- Wire format: AceSerializer -> LibDeflate (deflate + addon-channel encoding)
 -- -> AceComm (chunking) -> ChatThrottleLib (throttling) ->
--- C_ChatInfo.SendAddonMessage on PARTY/RAID (INSTANCE_CHAT in finder groups).
+-- C_ChatInfo.SendAddonMessage on PARTY/RAID (INSTANCE_CHAT in finder
+-- groups) or WHISPER. Never GUILD, never Battle.net.
 --
 -- Envelope: { v = protocol, t = type, s = session, id = seq, d = data, late = reason }
 --
@@ -14,7 +22,7 @@
 --
 -- Usage from modules:
 --   ns.Comm:RegisterHandler(owner, "TYPE", function(owner, data, sender, meta) end)
---   ns.Comm:Send("TYPE", data)
+--   ns.Comm:Send("TYPE", data, { scope = "group" | "friends" | "handshake", prio, key, to, reply })
 local _, ns = ...
 
 local AceComm = LibStub("AceComm-3.0")
@@ -140,31 +148,46 @@ function Comm:IsRestricted()
 	return false
 end
 
--- Sends a message to the group. Returns what happened:
+-- Sends a message to LooserPiml friends. Returns what happened:
 --   "sent"     handed to AceComm/ChatThrottleLib
 --   "queued"   held because sending is restricted right now
---   "solo"     not in a group, nobody to tell
+--   "nobody"   no friend may (or can) receive it right now
 --   "loopback" test mode, delivered locally only
+--   "dropped"  created in test mode, which has ended: never sent for real
 -- Why our own queue on top of ChatThrottleLib's: CTL only retries the
 -- AddonMessageThrottle result. Any other refusal (AddOnMessageLockdown during
 -- a boss, NotInGroup, ...) is reported once and the message is dropped.
--- replaceKey (optional): while held, a newer message with the same key
--- replaces the older one (e.g. stats snapshots: only the latest matters).
-function Comm:Send(msgType, data, prio, replaceKey)
+-- opts (all optional):
+--   scope  who may get it (Friends.SCOPES), default "group"
+--   to     array of names: only these (still checked against the scope)
+--   reply  answer to a friend who just wrote to us (see Friends.REPLY_WINDOW)
+--   prio   ChatThrottleLib priority, default "NORMAL"
+--   key    while held, a newer message with the same key replaces the older
+--          one (e.g. stats snapshots: only the latest matters)
+function Comm:Send(msgType, data, opts)
+	opts = opts or {}
+	local scope = opts.scope or "group"
+	assert(ns.Friends.SCOPES[scope], "unknown scope " .. tostring(scope))
 	local entry = {
 		t = msgType,
 		d = data,
 		id = nextId(),
-		prio = prio or "NORMAL",
-		key = replaceKey,
+		prio = opts.prio or "NORMAL",
+		key = opts.key,
+		scope = scope,
+		to = opts.to,
+		reply = opts.reply,
+		-- Remembered, so a message held during a simulated boss can never go
+		-- out for real after test mode was turned off.
+		test = ns.TestMode:IsEnabled() or nil,
 		queuedAt = time(),
 		attempts = 0,
 	}
 	if self:IsRestricted() then
 		return self:Hold(entry)
 	end
-	if replaceKey then
-		self:DropHeld(replaceKey) -- superseded: an older snapshot must not arrive after this one
+	if entry.key then
+		self:DropHeld(entry.key) -- superseded: an older snapshot must not arrive after this one
 	end
 	return self:Transmit(entry)
 end
@@ -190,7 +213,21 @@ local function onChunkSent(entry, _, _, didSend)
 	end
 end
 
+-- Messages created in test mode never leave the client, even when they
+-- were held and test mode is off by the time they would be flushed.
+function Comm:DropTestMessages()
+	for i = #self.queue, 1, -1 do
+		if self.queue[i].test then
+			table.remove(self.queue, i)
+		end
+	end
+end
+
 function Comm:Transmit(entry)
+	if entry.test and not ns.TestMode:IsEnabled() then
+		ns.Log:Debug("Dropped a %s message from test mode", entry.t)
+		return "dropped"
+	end
 	local envelope = {
 		v = self.PROTOCOL,
 		t = entry.t,
@@ -207,15 +244,20 @@ function Comm:Transmit(entry)
 		return "loopback"
 	end
 
-	-- Resolved now, not when queued: the group may have changed (or
-	-- disbanded) while the message was held.
-	local channel = ns.Roster:GetChannel()
-	if not channel then
-		return "solo"
+	-- Resolved now, not when queued: the group, the friends list or who is
+	-- online may have changed while the message was held.
+	local channel, whispers = ns.Friends:Route(entry.scope, entry.to, entry.reply)
+	if not channel and #whispers == 0 then
+		return "nobody"
 	end
 	entry.attempts = entry.attempts + 1
 	entry.failed = false
-	self:SendCommMessage(self.PREFIX, text, channel, nil, entry.prio, onChunkSent, entry)
+	if channel then
+		self:SendCommMessage(self.PREFIX, text, channel, nil, entry.prio, onChunkSent, entry)
+	end
+	for _, full in ipairs(whispers) do
+		self:SendCommMessage(self.PREFIX, text, "WHISPER", ns.Friends:GetShortTarget(full), entry.prio, onChunkSent, entry)
+	end
 	-- Lets senders rate-limit by actual transmissions, including messages
 	-- that were held and flushed later.
 	ns.Events:Fire("LP_COMM_SENT", entry.t)
@@ -340,19 +382,33 @@ function Comm:Receive(text, sender, distribution, isTest)
 	if type(sender) ~= "string" or ns.IsSecret(sender) then
 		return
 	end
+	-- AceComm Ambiguates senders: "Name" for our realm, "Name-Realm" otherwise.
+	-- Normalize gives one key for both.
+	local fullSender = ns.Roster:Normalize(sender)
+	if not fullSender then
+		return
+	end
+	local fromSelf = ns.Roster:IsPlayer(fullSender)
+	-- Mutual opt-in: whoever isn't on our LooserPiml friends list is
+	-- ignored, before the message is even decoded. Test-mode loopback and
+	-- simulated fake members never touch the network.
+	if not isTest and not fromSelf then
+		if not ns.Friends:IsListed(fullSender) then
+			ns.Log:Debug("Dropped a message from %s (not on your LooserPiml friends list)", fullSender)
+			return
+		end
+		ns.Friends:NoteHeard(fullSender)
+	end
 	local envelope, err = self:Decode(text)
 	if not envelope then
-		ns.Log:Debug("Unreadable message from %s (%s)", sender, err)
+		ns.Log:Debug("Unreadable message from %s (%s)", fullSender, err)
 		return
 	end
 	if type(envelope.t) ~= "string" or type(envelope.v) ~= "number" then
 		return
 	end
 
-	-- AceComm Ambiguates senders: "Name" for our realm, "Name-Realm" otherwise.
-	-- Normalize gives one key for both.
-	local fullSender = ns.Roster:Normalize(sender)
-	if ns.Roster:IsPlayer(fullSender) and envelope.t ~= self.SELFTEST then
+	if fromSelf and envelope.t ~= self.SELFTEST then
 		-- The server delivers PARTY/RAID addon messages to the sender too.
 		-- Own events were already displayed locally when they happened.
 		ns.Log:Debug("%s own %s message", isTest and "[test] Looped back" or "Ignored echo of", envelope.t)
@@ -395,8 +451,11 @@ function Comm:SimulateReceive(sender, msgType, data, late)
 end
 
 -- /lp selftest: a real addon message on the group channel, which the server
--- echoes back to us. Bypasses test-mode loopback and the hold queue on
--- purpose. Returns nil when not in a group.
+-- echoes back to us. Bypasses the hold queue on purpose (the caller skips
+-- it in test mode and while restricted).
+-- Returns nil plus "solo" when not in a group, or "strangers" when someone
+-- in the group isn't on the friends list: the group channel would reach
+-- them, so there is no real-transport test then.
 -- onResult(didSend) is called once all chunks were handed to the client.
 -- Why not a whisper to ourselves: on Forever the server rejects it ("No
 -- player named X is currently playing"), so solo there is no real-transport
@@ -404,7 +463,10 @@ end
 function Comm:SendSelfTest(data, onResult)
 	local channel = ns.Roster:GetChannel()
 	if not channel then
-		return nil
+		return nil, "solo"
+	end
+	if not ns.Friends:CanUseGroupChannel("handshake") then
+		return nil, "strangers"
 	end
 	local envelope = { v = self.PROTOCOL, t = self.SELFTEST, s = self.session, id = nextId(), d = data }
 	local text = self:Encode(envelope)

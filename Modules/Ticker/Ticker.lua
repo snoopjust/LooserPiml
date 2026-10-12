@@ -1,6 +1,7 @@
 -- Ticker: announces what happens to group members. Detection of the own
 -- player's events lives in Core/PlayerEvents.lua; the Ticker shows them
--- locally and broadcasts them; receivers count and display them.
+-- locally and sends them to LooserPiml friends in the group (never to
+-- anyone else, see Core/Friends.lua); receivers count and display them.
 --
 -- Events (MVP): level up, death (with a "drowned" variant), entering and
 -- leaving a dungeon or raid.
@@ -172,7 +173,9 @@ function Ticker:OnOwnEvent(kind, data, isTest)
 	if self:ShouldShow(data, true) then
 		self.Display:ShowEvent(me, data, { test = isTest })
 	end
-	return ns.Comm:Send(self.MSG, data)
+	-- "group": confirmed LooserPiml friends in our group. The Ticker
+	-- announces what happens in the group, not to friends elsewhere.
+	return ns.Comm:Send(self.MSG, data, { scope = "group" })
 end
 
 function Ticker:OnPlayerDead(_, info)

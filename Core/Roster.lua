@@ -1,14 +1,20 @@
 -- Group members, full names and class colors.
 --
--- Names are stored as "Name-Realm" everywhere (stats keys, version table).
--- Fires LP_ROSTER_CHANGED(joined, left) with arrays of full names.
+-- Names are stored as "Name-Realm" everywhere (stats keys, version table,
+-- friends list).
+-- Fires LP_ROSTER_CHANGED(joined, left) with arrays of full names, and
+-- LP_ROSTER_UPDATED after every scan (also for connection changes).
 local _, ns = ...
 
 local Roster = {}
 ns:RegisterCore("Roster", Roster)
 
-Roster.members = {} -- fullName -> { name, short, class, unit }
+Roster.members = {} -- fullName -> { name, short, class, unit, connected }
 Roster.fake = {}    -- fullName -> member, test mode only
+-- Group members whose name we couldn't read (still loading, or secret).
+-- While this is > 0 nobody can tell who the group channel would reach,
+-- so Friends never uses it (see Friends:CanUseGroupChannel).
+Roster.unknownMembers = 0
 
 -- GetNormalizedRealmName has spaces and hyphens stripped, the same form the
 -- server uses in "Name-Realm" sender names. It can be nil very early during
@@ -68,29 +74,45 @@ end
 -- group members are players, but we stay defensive). "Unknown"
 -- (UNKNOWNOBJECT) shows up while unit data is still loading; the next
 -- GROUP_ROSTER_UPDATE fills it in.
+-- Returns member, existed: existed is true for a unit that is there but
+-- couldn't be identified.
 local function readUnit(unit)
 	local exists = UnitExists(unit)
-	if ns.IsSecret(exists) or not exists then
-		return nil
+	if ns.IsSecret(exists) then
+		return nil, true
+	end
+	if not exists then
+		return nil, false
 	end
 	local name, realm = UnitName(unit)
 	if not name or ns.IsSecret(name) or ns.IsSecret(realm) or name == UNKNOWNOBJECT then
-		return nil
+		return nil, true
 	end
 	local full = (realm and realm ~= "") and (name .. "-" .. realm) or Roster:Normalize(name)
 	local _, class = UnitClass(unit)
 	if ns.IsSecret(class) then
 		class = nil
 	end
-	return { name = full, short = name, class = class, unit = unit }
+	-- Offline members stay in the group. Whispering them would make the
+	-- server answer with a "No player named ..." system message, so
+	-- Friends only whispers members that are connected. Unknown (secret)
+	-- counts as connected.
+	local connected = UnitIsConnected and UnitIsConnected(unit)
+	if ns.IsSecret(connected) then
+		connected = nil
+	end
+	return { name = full, short = name, class = class, unit = unit, connected = connected ~= false }, true
 end
 
 function Roster:Scan()
 	local found = {}
+	local unknown = 0
 	local function add(unit)
-		local member = readUnit(unit)
+		local member, existed = readUnit(unit)
 		if member then
 			found[member.name] = member
+		elseif existed then
+			unknown = unknown + 1
 		end
 	end
 	-- raid1..N include the player, party1..4 don't. GetNumGroupMembers counts
@@ -120,9 +142,11 @@ function Roster:Scan()
 	table.sort(joined)
 	table.sort(left)
 	self.members = found
+	self.unknownMembers = unknown
 	if #joined > 0 or #left > 0 then
 		ns.Events:Fire("LP_ROSTER_CHANGED", joined, left)
 	end
+	ns.Events:Fire("LP_ROSTER_UPDATED")
 end
 
 function Roster:GetMember(name)
@@ -133,6 +157,20 @@ end
 function Roster:GetClass(name)
 	local member = self:GetMember(name)
 	return member and member.class
+end
+
+-- Real group members other than the player (never the fake ones), sorted.
+function Roster:GetRealOthers()
+	local list = {}
+	for name, member in pairs(self.members) do
+		if not self:IsPlayer(name) then
+			list[#list + 1] = member
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.name < b.name
+	end)
+	return list
 end
 
 -- Other group members (real and, in test mode, fake), sorted by name.
@@ -211,5 +249,7 @@ end
 function Roster:OnEnable()
 	ns.Events:Register(self, "GROUP_ROSTER_UPDATE", "Scan")
 	ns.Events:Register(self, "PLAYER_ENTERING_WORLD", "Scan")
+	-- Fires when a group member goes offline or comes back (unit token).
+	ns.Events:Register(self, "UNIT_CONNECTION", "Scan")
 	self:Scan()
 end

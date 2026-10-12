@@ -1,8 +1,13 @@
--- Version handshake.
+-- Version handshake, only with LooserPiml friends (Core/Friends.lua).
 --
--- On login and whenever someone joins the group we broadcast HELLO with our
--- version. Everyone who receives a (non-reply) HELLO answers once with their
--- own. Mismatches are reported locally, once per player and session.
+-- HELLO goes only to listed friends who are online: after login, when a
+-- listed friend joins the group or comes online, and when you add someone
+-- (Friends:UpdateOnline calls Greet). Never to anyone else: there is no
+-- discovery broadcast to find out who in a group runs LooserPiml.
+-- A friend's client answers a (non-reply) HELLO only if we are on their
+-- list too (it drops our message otherwise), so receiving their HELLO
+-- tells us the friendship is mutual (Friends:OnHandshake).
+-- Version mismatches are reported locally, once per player and session.
 local ADDON_NAME, ns = ...
 local L = ns.L
 
@@ -10,12 +15,13 @@ local Version = {}
 ns:RegisterCore("Version", Version)
 
 Version.MSG = "HELLO"
-Version.HELLO_COOLDOWN = 10 -- seconds between our broadcasts (coalesced)
-Version.LOGIN_DELAY = 5     -- let the client settle after login before sending
+Version.HELLO_COOLDOWN = 10 -- seconds: at most one greeting and one reply per friend in this time
 Version.TEST_BASELINE = "1.0.0" -- dev builds compare as this in test mode
 
-Version.known = {}  -- fullName -> { version, protocol }
-Version.warned = {} -- fullName -> true
+Version.known = {}   -- fullName -> { version, protocol }: listed friends (and fake members) heard from
+Version.warned = {}  -- fullName -> true
+Version.greeted = {} -- fullName -> GetTime() of our last greeting
+Version.replied = {} -- fullName -> GetTime() of our last reply
 
 -- The packager replaces @project-version@ in the .toc with the git tag. In a
 -- git checkout (junction) the placeholder stays. GetAddOnMetadata moved
@@ -75,25 +81,48 @@ function Version:GetComparable()
 	return nil
 end
 
-function Version:SendHello(isReply)
+-- Keeps the names not contacted within HELLO_COOLDOWN (per table) and
+-- stamps them. Protects against bursts (several roster updates in a row)
+-- and against a friend's client answering in a loop.
+local function takeDue(stamps, names, cooldown)
 	local now = GetTime()
-	if self.lastHello and now - self.lastHello < self.HELLO_COOLDOWN then
-		-- Coalesce bursts (several joins, several HELLOs) into one later send.
-		if not self.helloScheduled then
-			self.helloScheduled = true
-			C_Timer.After(self.HELLO_COOLDOWN - (now - self.lastHello), function()
-				self.helloScheduled = false
-				self:SendHello(isReply)
-			end)
+	local due = {}
+	for _, name in ipairs(names) do
+		local last = stamps[name]
+		if not last or now - last >= cooldown then
+			stamps[name] = now
+			due[#due + 1] = name
 		end
-		return "scheduled"
 	end
-	self.lastHello = now
+	return due
+end
+
+local function send(self, targets, isReply)
+	-- Comm checks every target against the friends list again when the
+	-- message really goes out ("handshake" scope: listed friends only).
 	return ns.Comm:Send(self.MSG, {
 		ver = self:GetCurrent(),
 		proto = ns.Comm.PROTOCOL,
 		reply = isReply or nil,
-	})
+	}, { scope = "handshake", to = targets, reply = isReply })
+end
+
+-- HELLO to these listed friends. One group message if they are the whole
+-- group, otherwise one whisper each (decided by Friends:Route).
+function Version:Greet(names)
+	local due = takeDue(self.greeted, names, self.HELLO_COOLDOWN)
+	if #due == 0 then
+		return "cooldown"
+	end
+	return send(self, due, false)
+end
+
+function Version:Reply(name)
+	local due = takeDue(self.replied, { name }, self.HELLO_COOLDOWN)
+	if #due == 0 then
+		return "cooldown"
+	end
+	return send(self, due, true)
 end
 
 function Version:Check(sender, version, protocol)
@@ -127,21 +156,14 @@ function Version:OnHello(data, sender, meta)
 	end
 	local protocol = type(data.proto) == "number" and data.proto or meta.protocol
 	self.known[sender] = { version = version, protocol = protocol }
+	if not meta.test then
+		ns.Friends:OnHandshake(sender, version)
+	end
 	self:Check(sender, version, protocol)
+	-- Answer a greeting (not a reply, or two clients would answer each
+	-- other forever). Fake test-mode members never get an answer.
 	if not data.reply and not meta.test then
-		self:SendHello(true)
-	end
-end
-
-function Version:OnRosterChanged(_, joined, _, isFake)
-	if isFake or #joined == 0 then
-		return
-	end
-	for _, name in ipairs(joined) do
-		if not ns.Roster:IsPlayer(name) then
-			self:SendHello(false)
-			return
-		end
+		self:Reply(sender)
 	end
 end
 
@@ -160,10 +182,4 @@ end
 
 function Version:OnEnable()
 	ns.Comm:RegisterHandler(self, self.MSG, self.OnHello)
-	ns.Events:Register(self, "LP_ROSTER_CHANGED", "OnRosterChanged")
-	C_Timer.After(self.LOGIN_DELAY, function()
-		if ns.Roster:GetChannel() then
-			self:SendHello(false)
-		end
-	end)
 end

@@ -4,7 +4,13 @@
 --               group members appear (one with an outdated version)
 -- /lp sim ...   simulate events; modules register their own simulations
 -- /lp selftest  libraries, encoding, loopback and the REAL transport
---               (a hidden addon message whispered to yourself)
+--               (a hidden addon message on the group channel, echoed back
+--               by the server; only in a group of LooserPiml friends and
+--               never in test mode)
+--
+-- Nothing in test mode reaches real players: Comm loops every message
+-- back locally, fake members and sample friends exist only in memory and
+-- can't be added to the friends list.
 local _, ns = ...
 local L = ns.L
 
@@ -106,6 +112,7 @@ function TestMode:Disable()
 	end
 	ns.Events:SetSimulatedEncounter(false)
 	self.enabled = false
+	ns.Comm:DropTestMessages()
 	ns.Roster:SetFakeMembers(nil)
 	ns.Version.warned = {}
 	ns.Log:Print(L.TEST_OFF)
@@ -279,7 +286,11 @@ function TestMode:SelfTest()
 	info(L.SELFTEST_APIS:format(table.concat(apis, ", ")))
 
 	-- 5. Real transport: a multi-chunk addon message on the group channel,
-	-- which the server echoes back to the sender (needs a group).
+	-- which the server echoes back to the sender (needs a group of friends).
+	if self.enabled then
+		info(L.SELFTEST_TRANSPORT_TESTMODE)
+		return
+	end
 	local restricted, reason = ns.Comm:IsRestricted()
 	if restricted then
 		result(false, L.SELFTEST_TRANSPORT_SKIPPED:format(reason))
@@ -287,6 +298,10 @@ function TestMode:SelfTest()
 	end
 	if not ns.Roster:GetChannel() then
 		info(L.SELFTEST_TRANSPORT_SOLO)
+		return
+	end
+	if not ns.Friends:CanUseGroupChannel("handshake") then
+		info(L.SELFTEST_TRANSPORT_STRANGERS)
 		return
 	end
 	local expected = checksum(payload)

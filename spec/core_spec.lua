@@ -226,7 +226,7 @@ describe("Core", function()
 
 	describe("self-test", function()
 		it("reports libraries, roundtrip, loopback and the real group transport", function()
-			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
 			ns.Slash:Dispatch("selftest")
 			mock:Advance(2)
 			assert.is_true(mock:ChatContains("[OK]|r Libraries: CallbackHandler-1.0"))
@@ -258,7 +258,7 @@ describe("Core", function()
 		end)
 
 		it("reports a timeout when the echo never arrives", function()
-			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
 			mock.net.Flush = function(net)
 				net.pending = {} -- the server swallows everything
 			end

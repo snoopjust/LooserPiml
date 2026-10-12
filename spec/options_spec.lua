@@ -29,14 +29,14 @@ describe("Options", function()
 			for _, section in ipairs(O.sections) do
 				titles[#titles + 1] = section.id
 			end
-			assert.are.same({ "ticker", "banner", "stats", "testing" }, { titles[1], titles[2], titles[3], titles[#titles] })
+			assert.are.same({ "friends", "ticker", "banner", "stats", "testing" }, { titles[1], titles[2], titles[3], titles[4], titles[#titles] })
 		end)
 
 		it("migrates v0.1.0 saved data: sound moves into the banner settings", function()
 			local saved = { schemaVersion = 1, debug = false, modules = { Ticker = { sound = false, chatLog = true, stats = {} } } }
 			local mock, ns = H.client({ savedVariables = saved })
 			local db = mock.env.LooserPimlDB
-			assert.are.equal(2, db.schemaVersion)
+			assert.are.equal(ns.DB.SCHEMA_VERSION, db.schemaVersion)
 			assert.is_nil(db.modules.Ticker.sound)
 			assert.is_false(db.modules.Ticker.banner.sound)
 			assert.are.equal(4, db.modules.Ticker.banner.hold)
@@ -47,7 +47,7 @@ describe("Options", function()
 
 	describe("ticker message filters", function()
 		it("hides a message type, but still counts and broadcasts it", function()
-			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, confirmed = { "Max" } })
 			ns.Options:Set("ticker.death", false)
 			mock.player.dead = true
 			mock:Fire("PLAYER_DEAD")

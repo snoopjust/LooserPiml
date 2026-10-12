@@ -9,7 +9,7 @@
 --   Money.lua       gold changes with a source derived from context
 --   Loot.lua        rare loot, crafting, gathering, skill-ups (loot/skill messages)
 --   PvP.lua         duels, battlegrounds, honor
---   Sync.lua        sharing aggregates with friends, friends cache
+--   Sync.lua        sharing aggregates with friends, their stats cache
 --
 -- Storage (SavedVariables, per character because each client records only
 -- its own character):
@@ -24,9 +24,9 @@ Stats.MAX_TICK_GAP = 300    -- seconds: longer gaps (client frozen?) are not cou
 
 Stats.defaults = {
 	collect = true, -- setting: record stats at all
-	share = true,   -- setting: broadcast my aggregates to the group
+	share = true,   -- setting: send my aggregates to my LooserPiml friends
 	chars = {},
-	friends = {},
+	friendStats = {}, -- fullName -> latest aggregates received from that friend (Sync.lua)
 }
 
 function Stats:OnInitialize()
@@ -250,7 +250,8 @@ function Stats:TakeElapsed()
 	return elapsed
 end
 
--- Group time: total and per friend who runs LooserPiml (known from HELLO).
+-- Group time: total and per LooserPiml friend in the group (handshake
+-- answered this session).
 function Stats:Tick()
 	self:AccumulatePlayed()
 	local elapsed = math.floor(self:TakeElapsed() + 0.5)
@@ -259,7 +260,7 @@ function Stats:Tick()
 	end
 	self:Count("groupSeconds", elapsed)
 	for _, member in ipairs(ns.Roster:GetOthers()) do
-		if not member.fake and ns.Version.known[member.name] then
+		if not member.fake and ns.Friends:IsConfirmed(member.name) then
 			self:CountMap("groupWith", member.name, elapsed)
 		end
 	end

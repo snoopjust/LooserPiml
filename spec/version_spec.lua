@@ -59,7 +59,7 @@ describe("Version", function()
 	end)
 
 	it("warns only once per player and session", function()
-		local mock, ns = H.client({ version = "v0.2.0", group = { { name = "Max", class = "WARRIOR" } } })
+		local mock, ns = H.client({ version = "v0.2.0", group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
 		mock:Fire("CHAT_MSG_ADDON", "LPiml", hello(ns, "v0.1.0"), "PARTY", "Max-TestRealm")
 		mock:Fire("CHAT_MSG_ADDON", "LPiml", hello(ns, "v0.1.0"), "PARTY", "Max-TestRealm")
 		local warnings = 0
@@ -72,45 +72,58 @@ describe("Version", function()
 	end)
 
 	it("replies to a HELLO, but not to a reply", function()
-		local mock, ns = H.client({ version = "v0.2.0", group = { { name = "Max", class = "WARRIOR" } } })
+		local mock, ns = H.client({ version = "v0.2.0", group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
+		local function hellos()
+			local list = {}
+			for _, call in ipairs(mock.sent) do
+				local e = ns.Comm:Decode(call.text)
+				if e and e.t == "HELLO" then
+					list[#list + 1] = e
+				end
+			end
+			return list
+		end
 		mock:Advance(ns.Version.HELLO_COOLDOWN + 1)
-		local before = #mock.sent
+		local before = #hellos()
 		mock:Fire("CHAT_MSG_ADDON", "LPiml", hello(ns, "v0.2.0", { reply = true }), "PARTY", "Max-TestRealm")
 		mock:Advance(1)
-		assert.are.equal(before, #mock.sent)
+		assert.are.equal(before, #hellos())
+		assert.is_true(ns.Friends:IsConfirmed("Max")) -- the answer completes the handshake
 		mock:Fire("CHAT_MSG_ADDON", "LPiml", hello(ns, "v0.2.0"), "PARTY", "Max-TestRealm")
 		mock:Advance(1)
-		assert.are.equal(before + 1, #mock.sent)
-		local reply = ns.Comm:Decode(mock.sent[#mock.sent].text)
-		assert.are.equal("HELLO", reply.t)
-		assert.is_true(reply.d.reply)
+		local sent = hellos()
+		assert.are.equal(before + 1, #sent)
+		assert.is_true(sent[#sent].d.reply)
 	end)
 
-	it("says hello when someone joins, coalescing bursts", function()
-		local mock, ns = H.client({ version = "v0.2.0" })
+	it("greets only listed friends who join, one HELLO each, never the others", function()
+		local mock, ns = H.client({ version = "v0.2.0", friends = { "Max", "Kim" } })
+		local function hellos()
+			local list = {}
+			for _, call in ipairs(mock.sent) do
+				if ns.Comm:Decode(call.text).t == "HELLO" then
+					list[#list + 1] = call
+				end
+			end
+			return list
+		end
 		mock:JoinGroup({ { name = "Max", class = "WARRIOR" } })
 		mock:JoinGroup({ { name = "Max", class = "WARRIOR" }, { name = "Lena", class = "MAGE" } })
 		mock:JoinGroup({ { name = "Max", class = "WARRIOR" }, { name = "Lena", class = "MAGE" }, { name = "Kim", class = "ROGUE" } })
 		mock:Advance(1)
-		local hellos = 0
-		for _, call in ipairs(mock.sent) do
-			if ns.Comm:Decode(call.text).t == "HELLO" then
-				hellos = hellos + 1
-			end
-		end
-		assert.are.equal(1, hellos)
-		mock:Advance(ns.Version.HELLO_COOLDOWN + 1)
-		hellos = 0
-		for _, call in ipairs(mock.sent) do
-			if ns.Comm:Decode(call.text).t == "HELLO" then
-				hellos = hellos + 1
-			end
-		end
-		assert.are.equal(2, hellos) -- one coalesced follow-up for the later joins
+		local sent = hellos()
+		assert.are.equal(2, #sent)
+		assert.are.equal("PARTY", sent[1].chatType) -- only Max in the group: the group channel reaches nobody else
+		assert.are.equal("WHISPER", sent[2].chatType) -- Lena (not listed) is in the group now
+		assert.are.equal("Kim", sent[2].target)
+		mock:JoinGroup({ { name = "Max", class = "WARRIOR" }, { name = "Lena", class = "MAGE" } })
+		mock:JoinGroup({ { name = "Max", class = "WARRIOR" }, { name = "Lena", class = "MAGE" }, { name = "Kim", class = "ROGUE" } })
+		mock:Advance(1)
+		assert.are.equal(2, #hellos()) -- Kim again within the cooldown: no second HELLO
 	end)
 
 	it("strips escape sequences from versions received over the network", function()
-		local mock, ns = H.client({ version = "v0.2.0", group = { { name = "Max", class = "WARRIOR" } } })
+		local mock, ns = H.client({ version = "v0.2.0", group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
 		mock:Fire("CHAT_MSG_ADDON", "LPiml", hello(ns, "v0.1.0|TInterface\\x:99|t|Hitem:1|h"), "PARTY", "Max-TestRealm")
 		assert.are.equal("v0.1.0TInterfacex99tHitem1h", ns.Version.known["Max-TestRealm"].version)
 		for _, line in ipairs(mock.chat) do
@@ -119,7 +132,7 @@ describe("Version", function()
 	end)
 
 	it("reports an incompatible protocol", function()
-		local mock, ns = H.client({ version = "v0.2.0", group = { { name = "Max", class = "WARRIOR" } } })
+		local mock, ns = H.client({ version = "v0.2.0", group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
 		local text = ns.Comm:Encode({ v = 2, t = "HELLO", s = 1, id = 1, d = { ver = "v1.0.0", proto = 2 } })
 		mock:Fire("CHAT_MSG_ADDON", "LPiml", text, "PARTY", "Max-TestRealm")
 		assert.is_true(mock:ChatContains("uses a different message format"))

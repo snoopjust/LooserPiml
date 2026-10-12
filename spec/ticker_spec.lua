@@ -16,7 +16,7 @@ describe("Ticker", function()
 
 	describe("own events", function()
 		it("death: shows locally, counts and broadcasts", function()
-			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, confirmed = { "Max" } })
 			mock.player.dead = true
 			mock:Fire("PLAYER_DEAD")
 			mock:Advance(1)
@@ -57,7 +57,7 @@ describe("Ticker", function()
 		end)
 
 		it("level up broadcasts the new level", function()
-			local mock = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			local mock = H.client({ group = { { name = "Max", class = "WARRIOR" } }, confirmed = { "Max" } })
 			mock:Fire("PLAYER_LEVEL_UP", 11, 20, 15, 1, 0, 1, 1, 1, 1)
 			mock:Advance(1)
 			assert.are.equal("Me reached level 11!", H.lastRendered(mock))
@@ -143,7 +143,7 @@ describe("Ticker", function()
 
 	describe("dungeons", function()
 		it("announces entering and leaving, but not the login/reload baseline", function()
-			local mock = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			local mock = H.client({ group = { { name = "Max", class = "WARRIOR" } }, confirmed = { "Max" } })
 			mock.instance = { inInstance = true, type = "party", name = "The Deadmines", id = 36 }
 			mock:Fire("PLAYER_ENTERING_WORLD", false, true) -- /reload inside
 			assert.are.equal(0, #mock.rendered)
@@ -189,7 +189,7 @@ describe("Ticker", function()
 
 	describe("receiving", function()
 		it("shows a friend's death with their class color and counts it", function()
-			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
 			local text = ns.Comm:Encode({ v = 1, t = "TICK", s = 1, id = 1, d = { k = "death", c = "WARRIOR" } })
 			mock:Fire("CHAT_MSG_ADDON", "LPiml", text, "PARTY", "Max-TestRealm")
 			mock:Advance(1)
@@ -198,7 +198,7 @@ describe("Ticker", function()
 		end)
 
 		it("neutralizes escape sequences and drops malformed events", function()
-			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
+			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
 			local evil = ns.Comm:Encode({ v = 1, t = "TICK", s = 1, id = 1, d = {
 				k = "enter", i = "|Hitem:1|h[Free Gold]|h|TInterface\\x:999|t", c = "|cff000000",
 			} })

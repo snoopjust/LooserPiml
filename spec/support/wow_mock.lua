@@ -7,6 +7,11 @@
 --
 -- The mock enforces the safety constraints: calling SendChatMessage (visible
 -- chat) raises an error, and addon messages must be <= 255 bytes without NUL.
+-- Like the real server, group channels reach only the sender's group
+-- members (plus the echo to the sender), and a whisper reaches only an
+-- online player; whispering anyone else produces a "No player named ..."
+-- system line in the sender's chat. mock.onSend(call), if set, sees every
+-- accepted SendAddonMessage call (the helpers check recipients there).
 local Mock = {}
 Mock.__index = Mock
 
@@ -69,18 +74,27 @@ function Network:Flush()
 	self.pending = {}
 	for _, msg in ipairs(pending) do
 		local sender = msg.from:FullName()
+		local delivered = false
 		for _, client in ipairs(self.clients) do
 			local deliver
-			if msg.chatType == "WHISPER" then
-				deliver = client:MatchesName(msg.target)
+			if client.online == false then
+				deliver = false
+			elseif msg.chatType == "WHISPER" then
+				deliver = client ~= msg.from and client:MatchesName(msg.target, msg.from.player.realm)
+			elseif client == msg.from then
+				deliver = client.echoGroup -- the server echoes group messages to the sender
 			else
-				-- Group channels reach everyone, including the sender (echo).
-				deliver = client ~= msg.from or client.echoGroup
+				deliver = msg.groupNames[client:FullName()] == true
 			end
 			if deliver then
+				delivered = true
 				client.received[#client.received + 1] = msg
 				client:Fire("CHAT_MSG_ADDON", msg.prefix, msg.text, msg.chatType, sender, sender, 0, 0, "", 0)
 			end
+		end
+		if msg.chatType == "WHISPER" and not delivered and not msg.from:KnowsOnline(msg.target) then
+			-- What the real server answers when the target is offline.
+			msg.from.chat[#msg.from.chat + 1] = "No player named '" .. tostring(msg.target) .. "' is currently playing."
 		end
 	end
 end
@@ -270,8 +284,36 @@ function Mock:FullName()
 	return self.player.name .. "-" .. self.player.realm
 end
 
-function Mock:MatchesName(target)
-	return target == self.player.name or target == self:FullName()
+-- senderRealm: a bare "Name" means a character on the sender's realm.
+function Mock:MatchesName(target, senderRealm)
+	if target == self:FullName() then
+		return true
+	end
+	return target == self.player.name and (senderRealm == nil or senderRealm == self.player.realm)
+end
+
+-- Players without a simulated client who are online anyway: connected
+-- members of this client's group and online entries of its friends list.
+function Mock:KnowsOnline(target)
+	for _, member in ipairs(self.group) do
+		if type(member.name) == "string" and not member.offline
+			and (target == member.name or target == member.name .. "-" .. (member.realm or self.player.realm)) then
+			return true
+		end
+	end
+	local info = self.friendList[target]
+	return type(info) == "table" and info.connected == true
+end
+
+-- "Name-Realm" of every other group member, as the server sees the group.
+function Mock:GroupNames()
+	local names = {}
+	for _, member in ipairs(self.group) do
+		if type(member.name) == "string" then
+			names[member.name .. "-" .. (member.realm or self.player.realm)] = true
+		end
+	end
+	return names
 end
 
 function Mock:Unit(unit)
@@ -603,6 +645,15 @@ function Mock:BuildEnv()
 			end
 			return options
 		end,
+		RegisterCanvasLayoutSubcategory = function(parent, frame, name)
+			local subcategory = { name = name, frame = frame, parent = parent }
+			function subcategory:GetID()
+				return 4243
+			end
+			mock.settings.subcategories = mock.settings.subcategories or {}
+			mock.settings.subcategories[#mock.settings.subcategories + 1] = subcategory
+			return subcategory
+		end,
 		RegisterAddOnCategory = function(category)
 			mock.settings.registered = category
 		end,
@@ -712,7 +763,7 @@ function Mock:BuildEnv()
 			assert(#text <= 255, "addon message longer than 255 bytes: " .. #text)
 			assert(not text:find("\0", 1, true), "addon message contains NUL")
 			assert(mock.prefixes[prefix], "prefix not registered: " .. tostring(prefix))
-			local call = { prefix = prefix, text = text, chatType = chatType, target = target, at = mock.now }
+			local call = { prefix = prefix, text = text, chatType = chatType, target = target, at = mock.now, groupNames = mock:GroupNames() }
 			if mock.lockdown or mock.refuseSends then
 				mock.refused[#mock.refused + 1] = call
 				return SEND_RESULT.AddOnMessageLockdown
@@ -728,8 +779,11 @@ function Mock:BuildEnv()
 				return SEND_RESULT.Success
 			end
 			mock.sent[#mock.sent + 1] = call
+			if mock.onSend then
+				mock.onSend(call)
+			end
 			mock.net.pending[#mock.net.pending + 1] = {
-				from = mock, prefix = prefix, text = text, chatType = chatType, target = target,
+				from = mock, prefix = prefix, text = text, chatType = chatType, target = target, groupNames = call.groupNames,
 			}
 			return SEND_RESULT.Success
 		end,
@@ -778,6 +832,19 @@ function Mock:BuildEnv()
 	G.UnitLevel = function(unit)
 		local u = mock:Unit(unit)
 		return u and u.level or 0
+	end
+	G.UnitIsConnected = function(unit)
+		local u, isPlayer = mock:Unit(unit)
+		if not u then
+			return false
+		end
+		if isPlayer then
+			return true
+		end
+		if u.connected ~= nil then
+			return u.connected -- tests may make it secret
+		end
+		return not u.offline
 	end
 	G.UnitIsDeadOrGhost = function(unit)
 		local u = mock:Unit(unit)

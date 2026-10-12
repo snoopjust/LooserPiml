@@ -6,6 +6,8 @@
 --     debug = false,
 --     moduleEnabled = { [moduleName] = bool },  -- only set after a manual toggle
 --     modules = { [moduleName] = { ...module data... } },
+--     friends = { ["Name-Realm"] = { added, handshake, ... } }, -- Core/Friends.lua
+--     window = {...}, minimap = {...},
 --   }
 --
 -- Test mode is deliberately not saved: after a /reload you are back to normal.
@@ -18,7 +20,7 @@ local _, ns = ...
 local DB = {}
 ns:RegisterCore("DB", DB)
 
-DB.SCHEMA_VERSION = 2
+DB.SCHEMA_VERSION = 3
 
 DB.defaults = {
 	debug = false,
@@ -26,6 +28,7 @@ DB.defaults = {
 	modules = {},
 	window = {},                -- main window position
 	minimap = { hide = false }, -- LibDBIcon settings (hide, minimapPos)
+	friends = {},               -- the LooserPiml friends list (Core/Friends.lua)
 }
 
 -- DB.migrations[n] upgrades a database from schema n-1 to n. Add a new entry
@@ -41,6 +44,19 @@ DB.migrations[2] = function(db)
 		ticker.banner = type(ticker.banner) == "table" and ticker.banner or {}
 		ticker.banner.sound = ticker.sound
 		ticker.sound = nil
+	end
+end
+
+-- v0.2.0 friends list: LooserPiml now talks only to players on the
+-- explicit, mutual friends list. Stats received before that came from
+-- anyone in the group who ran LooserPiml, without either side opting in,
+-- so that cache is dropped. Received stats now live in Stats.friendStats.
+-- The friends list itself starts empty on purpose (nobody is added
+-- automatically).
+DB.migrations[3] = function(db)
+	local stats = type(db.modules) == "table" and db.modules.Stats
+	if type(stats) == "table" then
+		stats.friends = nil
 	end
 end
 

@@ -55,7 +55,8 @@ function Stats:OnChatMsgSystem(_, text)
 	self:Record("duel", {
 		result = result,
 		opponent = opponent,
-		opponentHasAddon = (ns.Version.known[opponent] or self.db.friends[opponent]) and true or false,
+		-- Only knowable for LooserPiml friends: nobody else is ever asked.
+		opponentHasAddon = ns.Friends:HasHandshake(opponent),
 	})
 end
 

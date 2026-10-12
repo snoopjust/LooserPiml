@@ -78,12 +78,57 @@ end
 
 H.created = {}
 
+-- The communication rule, checked on every single SendAddonMessage call
+-- of every test: a whisper goes only to a listed LooserPiml friend, a
+-- group message only into a group where every other member is listed, and
+-- nothing at all leaves the client in test mode.
+local function checkRecipients(mock, call)
+	local ns = mock.ns
+	if not (ns and ns.Friends and ns.DB and ns.DB.data) then
+		return
+	end
+	local function violation(text)
+		mock.violations[#mock.violations + 1] = text
+	end
+	if ns.TestMode:IsEnabled() then
+		violation("sent a " .. tostring(call.chatType) .. " message in test mode")
+	end
+	if call.chatType == "WHISPER" then
+		if not ns.Friends:IsListed(call.target) then
+			violation("whispered " .. tostring(call.target) .. ", who is not on the friends list")
+		end
+	else
+		for full in pairs(call.groupNames) do
+			if not ns.Friends:IsListed(full) then
+				violation(call.chatType .. " message reached " .. full .. ", who is not on the friends list")
+			end
+		end
+	end
+end
+H.checkRecipients = checkRecipients
+
+-- Puts names on the client's LooserPiml friends list (as the friends UI
+-- would, without the side effects).
+function H.befriend(mock, names)
+	local ns = mock.ns
+	for _, name in ipairs(names) do
+		ns.DB:Get("friends")[ns.Roster:Normalize(name)] = { added = 0 }
+	end
+end
+
 -- Creates a client, loads the addon and runs the login sequence.
--- opts: name, realm, class, version, savedVariables, testMode, group, debug
+-- opts: name, realm, class, version, savedVariables, testMode, group, debug,
+--       friends (names on the LooserPiml friends list from the start),
+--       confirmed (friends who also answered the handshake, as if they had
+--       listed us too)
 function H.client(opts)
 	opts = opts or {}
 	local mock = Mock.new(opts)
 	H.created[#H.created + 1] = mock
+	mock.violations = {}
+	mock.onSend = function(call)
+		checkRecipients(mock, call)
+	end
 	if opts.savedVariables then
 		mock.env.LooserPimlDB = opts.savedVariables
 	end
@@ -93,6 +138,12 @@ function H.client(opts)
 	local ns = H.load(mock)
 
 	mock:Fire("ADDON_LOADED", H.ADDON)
+	if opts.friends then
+		H.befriend(mock, opts.friends)
+	end
+	if opts.confirmed then
+		H.befriend(mock, opts.confirmed)
+	end
 	mock.loggedIn = true
 	mock:Fire("PLAYER_LOGIN")
 	mock:Fire("PLAYER_ENTERING_WORLD", true, false)
@@ -118,22 +169,37 @@ function H.client(opts)
 	end
 	-- Let login timers (HELLO etc.) run.
 	mock:Advance(opts.settle or 6)
+	for _, name in ipairs(opts.confirmed or {}) do
+		H.confirm(mock, name)
+	end
 	return mock, ns
 end
 
--- Puts several clients into one group on a shared network.
+-- As if `name` (already on the list) had answered our handshake.
+function H.confirm(mock, name)
+	local ns = mock.ns
+	ns.Friends:OnHandshake(ns.Roster:Normalize(name), "v0.2.0")
+end
+
+-- Puts several clients into one group on a shared network. Unless a spec
+-- says otherwise (friends = {...}), everyone has everyone else on their
+-- LooserPiml friends list.
 -- specs: array of { name, class, ... } (the H.client opts)
 function H.group(specs)
 	local net = Mock.NewNetwork()
 	local clients = {}
 	for i, spec in ipairs(specs) do
-		local others = {}
+		local others, names = {}, {}
 		for j, other in ipairs(specs) do
 			if i ~= j then
 				others[#others + 1] = { name = other.name, class = other.class or "WARRIOR" }
+				names[#names + 1] = other.name
 			end
 		end
 		spec.group = others
+		if spec.friends == nil then
+			spec.friends = names
+		end
 		spec.settle = 0
 		local mock = H.client(spec)
 		-- move from the private network to the shared one
@@ -194,12 +260,30 @@ function H.assertNoErrors(mock)
 	end
 end
 
--- Used in after_each: every client created during the test must be error-free.
+-- Fails the test if the client ever sent to someone off its friends list,
+-- or whispered someone who isn't online (the server answers that with a
+-- "No player named ..." line).
+function H.assertRecipientsOk(mock)
+	if #mock.violations > 0 then
+		error("Communication rule broken by " .. mock.player.name .. ":\n" .. table.concat(mock.violations, "\n"), 2)
+	end
+	if not mock.allowNotFound then
+		for _, line in ipairs(mock.chat) do
+			if line:find("is currently playing", 1, true) then
+				error(mock.player.name .. " whispered someone who is offline: " .. line, 2)
+			end
+		end
+	end
+end
+
+-- Used in after_each: every client created during the test must be
+-- error-free and must have kept the communication rule.
 function H.checkClients()
 	local created = H.created
 	H.created = {}
 	for _, mock in ipairs(created) do
 		H.assertNoErrors(mock)
+		H.assertRecipientsOk(mock)
 	end
 end
 

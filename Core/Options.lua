@@ -15,6 +15,10 @@
 --   default                          checkbox/slider
 --   min, max, step, format(value)    slider
 --   buttonText, onClick()            button
+--
+-- Pages with their own frame (lists that change at runtime, like the
+-- friends list) are registered with AddCanvas and become subcategories
+-- (Options > AddOns > LooserPiml > Title).
 local _, ns = ...
 local L = ns.L
 
@@ -22,6 +26,7 @@ local Options = {}
 ns:RegisterCore("Options", Options)
 
 Options.sections = {} -- ordered: { id, title, items }
+Options.canvases = {} -- ordered: { id, title, create() -> frame }
 
 local function findSection(id)
 	for _, section in ipairs(Options.sections) do
@@ -77,6 +82,12 @@ function Options:Set(key, value)
 	ns.Events:Fire("LP_OPTION_CHANGED", key, value)
 end
 
+-- A settings page with its own frame. create() is called once, when the
+-- panel is built; the frame should refresh itself in OnShow.
+function Options:AddCanvas(id, title, create)
+	self.canvases[#self.canvases + 1] = { id = id, title = title, create = create }
+end
+
 ----------------------------------------------------------------------
 -- Blizzard Settings panel
 ----------------------------------------------------------------------
@@ -88,6 +99,7 @@ end
 --   Settings.CreateSlider(category, setting, options, tooltip)
 --   CreateSettingsButtonInitializer(name, buttonText, onClick, tooltip, addSearchTags)
 --   CreateSettingsListSectionHeaderInitializer(name, tooltip)
+--   Settings.RegisterCanvasLayoutSubcategory(parentCategory, frame, name) -> subcategory
 --   Settings.OpenToCategory(categoryID)
 
 local function variableName(key)
@@ -134,13 +146,25 @@ function Options:BuildPanel()
 			end
 		end
 	end
+	self.subcategories = {}
+	if Settings.RegisterCanvasLayoutSubcategory then
+		for _, canvas in ipairs(self.canvases) do
+			local frame = canvas.create()
+			self.subcategories[canvas.id] = Settings.RegisterCanvasLayoutSubcategory(category, frame, canvas.title)
+		end
+	end
 	Settings.RegisterAddOnCategory(category)
 	self.category = category
 end
 
-function Options:Open()
-	if self.category and Settings and Settings.OpenToCategory then
-		Settings.OpenToCategory(self.category:GetID())
+-- Opens the LooserPiml settings, or one of its canvas pages (subcategoryId).
+function Options:Open(subcategoryId)
+	local category = self.category
+	if subcategoryId and self.subcategories and self.subcategories[subcategoryId] then
+		category = self.subcategories[subcategoryId]
+	end
+	if category and Settings and Settings.OpenToCategory then
+		Settings.OpenToCategory(category:GetID())
 		return true
 	end
 	ns.Log:Print(L.OPTIONS_UNAVAILABLE)

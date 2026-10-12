@@ -28,6 +28,7 @@ Core\Events.lua
 Core\DB.lua
 Core\Log.lua
 Core\Roster.lua
+Core\Friends.lua
 Core\PlayerEvents.lua
 Core\Comm.lua
 Core\Version.lua
@@ -35,6 +36,7 @@ Core\TestMode.lua
 Core\Slash.lua
 Core\Options.lua
 Core\Window.lua
+Core\FriendsPanel.lua
 
 Modules\Ticker\Ticker.lua
 Modules\Ticker\Stats.lua
