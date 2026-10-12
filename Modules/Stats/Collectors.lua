@@ -154,7 +154,14 @@ end
 -- Payload: unitTarget, castGUID, spellID. Can be secret while spell casts
 -- are restricted (combat); then nothing is counted.
 function Stats:OnSpellcastSucceeded(_, unit, _, spellID)
-	if unit ~= "player" or ns.IsSecret(spellID) or type(spellID) ~= "number" then
+	if unit ~= "player" then
+		return
+	end
+	if ns.IsSecret(spellID) then
+		self:NoteCast(nil, true) -- Loot.lua: the next loot window can't be classified
+		return
+	end
+	if type(spellID) ~= "number" then
 		return
 	end
 	if spellID == self.HEARTHSTONE_SPELL then
@@ -162,6 +169,7 @@ function Stats:OnSpellcastSucceeded(_, unit, _, spellID)
 		return
 	end
 	local name = self:SpellName(spellID)
+	self:NoteCast(name)
 	if name and name == self:SpellName(self.FOOD_SPELL) then
 		self:Count("food", 1)
 	elseif name and name == self:SpellName(self.DRINK_SPELL) then

@@ -240,11 +240,15 @@ function Mock.new(opts)
 	self.subzone = "Goldshire"
 	self.money = 10000
 	self.swimming, self.flying, self.falling = false, false, false
-	self.spellNames = { [433] = "Food", [430] = "Drink", [8690] = "Hearthstone" }
+	self.spellNames = {
+		[433] = "Food", [430] = "Drink", [8690] = "Hearthstone",
+		[2366] = "Herb Gathering", [2575] = "Mining", [8613] = "Skinning",
+	}
 	self.taxiNodes = {}
 	self.invoices = {}
 	self.itemQuality = {}
 	self.lootSource = {}
+	self.lootSlots = { { isQuestItem = false } } -- GetLootSlotInfo per slot
 	self.fishing = false
 	self.professions = { indices = { 1, 2 }, names = { "Mining", "Herbalism" } }
 	self.faction = "Alliance"
@@ -872,6 +876,17 @@ function Mock:BuildEnv()
 	end
 	G.IsFishingLoot = function()
 		return mock.fishing
+	end
+	G.GetNumLootItems = function()
+		return #mock.lootSlots
+	end
+	-- texture, item, quantity, currencyID, quality, locked, isQuestItem, questID, isActive, isCoin
+	G.GetLootSlotInfo = function(slot)
+		local s = mock.lootSlots[slot]
+		if not s then
+			return nil
+		end
+		return 133784, s.name or "Item", 1, nil, 1, false, s.isQuestItem == true, nil, false, false
 	end
 	G.GetProfessions = function()
 		return unpack(mock.professions.indices)

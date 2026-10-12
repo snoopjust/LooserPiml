@@ -1,9 +1,10 @@
--- Rare loot, crafting, gathering and skill-ups of the own character.
+-- Rare loot, crafting, gathering, chests and skill-ups of the own character.
 --
 -- Sources:
 --   CHAT_MSG_LOOT   "You receive loot: [Item]x2." / "You create: [Item]."
 --   CHAT_MSG_SKILL  "Your skill in Mining has increased to 75."
---   LOOT_OPENED     whether the loot window belongs to a gathering node
+--   LOOT_OPENED     what the loot window belongs to: gathering (herb, ore,
+--                   skinning, fishing) or a chest
 --
 -- The message texts are matched with the client's own GlobalStrings (see
 -- Util.MatchFormat), so other client languages work too. Messages about
@@ -15,6 +16,17 @@ local Stats = ns:GetModule("Stats")
 local Util = ns.Util
 
 Stats.RARE_QUALITY = 3 -- Enum.ItemQuality.Rare (blue) and better
+
+-- Gathering casts. Any spell with the same (localized) name counts, so
+-- every rank matches. TODO(verify in-game): these IDs exist on Forever
+-- and gathering a node really casts a spell of this name.
+Stats.GATHER_SPELLS = {
+	herb = 2366,     -- Herb Gathering
+	mining = 2575,   -- Mining
+	skinning = 8613, -- Skinning
+}
+-- Seconds between the end of a gathering cast and the loot window.
+Stats.GATHER_WINDOW = 5
 
 -- Own-loot GlobalStrings, "...MULTIPLE" first: the single form would also
 -- match "[Item]x2." and swallow the count.
@@ -83,23 +95,72 @@ function Stats:OnChatMsgLoot(_, text)
 	end
 end
 
--- Called from Money.lua's LOOT_OPENED handler. GetLootSourceInfo(slot)
--- returns the GUID of what is being looted; "GameObject-..." means a node
--- (herb, ore) or a chest, "Creature-..." a mob. Fishing loot is counted
--- separately because the bobber is a GameObject too.
+-- Called by Collectors for the player's successful casts: remembers a
+-- gathering cast, so the loot window that follows counts as gathered.
+-- secret = the cast happened but its spell was secret (restricted): then
+-- the next loot window can't be classified.
+function Stats:NoteCast(spellName, secret)
+	if secret then
+		self.lastCast = { at = GetTime(), secret = true }
+		return
+	end
+	for kind, spellID in pairs(self.GATHER_SPELLS) do
+		if spellName and spellName == self:SpellName(spellID) then
+			self.lastCast = { at = GetTime(), gather = kind }
+			return
+		end
+	end
+end
+
+-- True if the open loot window holds anything that isn't a quest item.
+-- Quest objects on the ground (sacks, crates for a quest) are GameObjects
+-- too, but they aren't chests. If the slot API is missing, assume a chest.
+local function hasNonQuestLoot()
+	if not (GetNumLootItems and GetLootSlotInfo) then
+		return true
+	end
+	local count = GetNumLootItems()
+	if ns.IsSecret(count) or type(count) ~= "number" then
+		return true
+	end
+	for slot = 1, count do
+		local isQuestItem = select(7, GetLootSlotInfo(slot))
+		if ns.IsSecret(isQuestItem) or not isQuestItem then
+			return true
+		end
+	end
+	return false
+end
+
+-- Called from Money.lua's LOOT_OPENED handler. Gathering is told apart by
+-- the cast right before the loot window (Herb Gathering, Mining, Skinning;
+-- the fishing bobber via IsFishingLoot), because nothing in the loot API
+-- says "node". Loot from any other GameObject ("GameObject-..." GUID from
+-- GetLootSourceInfo) is a chest: counted as chestsOpened, not as gathered.
+-- Chests are only counted for now, the UI doesn't show them yet.
 function Stats:OnLootOpened()
-	if not GetLootSourceInfo then
-		return
-	end
-	local guid = GetLootSourceInfo(1)
-	if ns.IsSecret(guid) or type(guid) ~= "string" then
-		return
-	end
+	local cast = self.lastCast
+	self.lastCast = nil
+	local recent = cast and GetTime() - cast.at <= self.GATHER_WINDOW
 	local fishing = IsFishingLoot and IsFishingLoot()
 	if not ns.IsSecret(fishing) and fishing then
 		self:Record("profession", { kind = "gathered", source = "fishing" })
-	elseif guid:match("^GameObject%-") then
-		self:Record("profession", { kind = "gathered", source = "object" })
+		return
+	end
+	if recent and cast.gather then
+		self:Record("profession", { kind = "gathered", source = cast.gather })
+		return
+	end
+	if recent and cast.secret then
+		ns.Log:Debug("Stats: loot source unknown (the cast before it was secret), not counted")
+		return
+	end
+	local guid = GetLootSourceInfo and GetLootSourceInfo(1)
+	if ns.IsSecret(guid) or type(guid) ~= "string" then
+		return
+	end
+	if guid:match("^GameObject%-") and hasNonQuestLoot() then
+		self:Count("chestsOpened", 1)
 	end
 end
 

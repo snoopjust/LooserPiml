@@ -251,22 +251,59 @@ describe("Stats collectors", function()
 			assert.are.equal(1, today(mock).n.lootEpic)
 		end)
 
-		it("records crafted items, gathered nodes and fishing", function()
+		local function loot(mock, guid)
+			mock.lootSource[1] = guid
+			mock:Fire("LOOT_OPENED", true, false)
+			mock:Fire("LOOT_CLOSED")
+		end
+
+		it("records crafted items, gathering (herb, ore, skinning, fishing) and not mobs", function()
 			local mock = H.client()
 			mock:Fire("CHAT_MSG_LOOT", "You create: " .. grey .. "x5.", "Me")
-			mock.lootSource[1] = "GameObject-0-1-2-3-1731-0000"
-			mock:Fire("LOOT_OPENED", true, false)
-			mock:Fire("LOOT_CLOSED")
-			mock.lootSource[1] = "Creature-0-1-2-3-299-0000"
-			mock:Fire("LOOT_OPENED", true, false)
-			mock:Fire("LOOT_CLOSED")
+			mock:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 2366) -- Herb Gathering
+			loot(mock, "GameObject-0-1-2-3-1617-0000")
+			mock:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-2", 2575) -- Mining
+			loot(mock, "GameObject-0-1-2-3-1731-0000")
+			loot(mock, "Creature-0-1-2-3-299-0000") -- a mob
+			mock:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3", 8613) -- Skinning the mob
+			loot(mock, "Creature-0-1-2-3-299-0000")
 			mock.fishing = true
-			mock.lootSource[1] = "GameObject-0-1-2-3-35591-0000"
-			mock:Fire("LOOT_OPENED", true, false)
+			loot(mock, "GameObject-0-1-2-3-35591-0000")
 			local agg = today(mock)
 			assert.are.equal(5, agg.n.crafted)
-			assert.are.equal(2, agg.n.gathered) -- the herb/ore node and the fishing loot, not the mob
-			assert.are.equal("fishing", last(mock, "profession").data.source)
+			assert.are.equal(4, agg.n.gathered)
+			assert.is_nil(agg.n.chestsOpened)
+			local sources = {}
+			for _, e in ipairs(events(mock, "profession")) do
+				if e.data.kind == "gathered" then
+					sources[#sources + 1] = e.data.source
+				end
+			end
+			assert.are.same({ "herb", "mining", "skinning", "fishing" }, sources)
+		end)
+
+		it("counts chests separately (chestsOpened), never as gathered", function()
+			local mock = H.client()
+			loot(mock, "GameObject-0-1-2-3-2843-0000") -- a chest: no gathering cast before it
+			mock:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 2366)
+			mock:Advance(10) -- too long ago for the next loot window
+			loot(mock, "GameObject-0-1-2-3-2844-0000")
+			mock.lootSlots = { { isQuestItem = true } } -- a quest object on the ground, not a chest
+			loot(mock, "GameObject-0-1-2-3-2845-0000")
+			local agg = today(mock)
+			assert.are.equal(2, agg.n.chestsOpened)
+			assert.is_nil(agg.n.gathered)
+			assert.are.equal(0, #events(mock, "profession")) -- a counter, not log entries
+		end)
+
+		it("does not guess when the cast before the loot window was secret", function()
+			local mock = H.client()
+			mock:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", H.Mock.Secret())
+			loot(mock, "GameObject-0-1-2-3-1617-0000")
+			local agg = today(mock)
+			assert.is_nil(agg.n.gathered)
+			assert.is_nil(agg.n.chestsOpened)
+			H.assertNoErrors(mock)
 		end)
 
 		it("records skill-ups and tells professions from other skills", function()
