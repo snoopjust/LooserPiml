@@ -1,11 +1,11 @@
 -- Test mode and self-test, so everything can be tried solo on one account.
 --
 -- /lp test on   loopback: outgoing messages never leave the client, fake
---               group members appear (one with an outdated version)
+--               friends appear (one with an outdated version)
 -- /lp sim ...   simulate events; modules register their own simulations
 -- /lp selftest  libraries, encoding, loopback and the REAL transport
---               (a hidden addon message on the group channel, echoed back
---               by the server; only in a group of LooserPiml friends and
+--               (a hidden multi-chunk addon message whispered to one
+--               connected LooserPiml friend, whose client sends it back;
 --               never in test mode)
 --
 -- Nothing in test mode reaches real players: Comm loops every message
@@ -24,7 +24,9 @@ TestMode.FAKE_MEMBERS = {
 	{ name = "Kim", class = "ROGUE", version = "older" },
 }
 TestMode.BOSS_DURATION = 10      -- seconds of a simulated encounter
-TestMode.SELFTEST_TIMEOUT = 10   -- seconds to wait for our own whisper
+TestMode.SELFTEST_TIMEOUT = 15   -- seconds to wait for the friend's echo
+TestMode.ECHO_COOLDOWN = 10      -- seconds: at most one echo per friend
+TestMode.MAX_ECHO_TEXT = 4000    -- longest self-test payload we send back
 TestMode.SELFTEST_SIZE = 1200    -- payload chars, enough for several chunks
 
 TestMode.enabled = false
@@ -91,7 +93,7 @@ function TestMode:Enable()
 		names[#names + 1] = ns.Roster:ColorName(member.name, member.class)
 	end
 	ns.Log:Print(L.TEST_ON, table.concat(names, ", "))
-	-- The fake group says hello, like a real group would after a join.
+	-- The fake friends say hello, like real friends coming online.
 	C_Timer.After(1, function()
 		if not self.enabled then
 			return
@@ -285,8 +287,8 @@ function TestMode:SelfTest()
 	}
 	info(L.SELFTEST_APIS:format(table.concat(apis, ", ")))
 
-	-- 5. Real transport: a multi-chunk addon message on the group channel,
-	-- which the server echoes back to the sender (needs a group of friends).
+	-- 5. Real transport: a multi-chunk addon message whispered to one
+	-- connected friend, whose client whispers it back (see OnEnable).
 	if self.enabled then
 		info(L.SELFTEST_TRANSPORT_TESTMODE)
 		return
@@ -296,39 +298,70 @@ function TestMode:SelfTest()
 		result(false, L.SELFTEST_TRANSPORT_SKIPPED:format(reason))
 		return
 	end
-	if not ns.Roster:GetChannel() then
-		info(L.SELFTEST_TRANSPORT_SOLO)
-		return
-	end
-	if not ns.Friends:CanUseGroupChannel("handshake") then
-		info(L.SELFTEST_TRANSPORT_STRANGERS)
+	local friend = ns.Friends:GetConnected()[1]
+	if not friend then
+		info(L.SELFTEST_TRANSPORT_NO_FRIEND)
 		return
 	end
 	local expected = checksum(payload)
 	local startedAt = GetTime()
 	local done = false
-	ns.Comm:RegisterHandler(self, ns.Comm.SELFTEST, function(_, data, sender)
-		if done or not ns.Roster:IsPlayer(sender) then
+	local friendName = ns.Roster:ColorName(friend)
+	ns.Comm:RegisterHandler(self, ns.Comm.SELFTEST_ECHO, function(_, data, sender)
+		if done or sender ~= friend then
 			return
 		end
 		done = true
 		ns.Comm:UnregisterHandlers(self)
 		local intact = type(data) == "table" and data.text == payload and data.sum == expected
-		result(intact, intact and L.SELFTEST_TRANSPORT_OK:format(GetTime() - startedAt) or L.SELFTEST_TRANSPORT_CORRUPT)
+		result(intact, intact and L.SELFTEST_TRANSPORT_OK:format(friendName, GetTime() - startedAt) or L.SELFTEST_TRANSPORT_CORRUPT)
 	end)
-	local bytes, chunks = ns.Comm:SendSelfTest({ text = payload, sum = expected }, function(allSent)
+	local bytes, chunks = ns.Comm:SendSelfTest({ text = payload, sum = expected }, friend, function(allSent)
 		if not allSent and not done then
 			done = true
 			ns.Comm:UnregisterHandlers(self)
 			result(false, L.SELFTEST_TRANSPORT_FAILED:format("didSend=false"))
 		end
 	end)
-	info(L.SELFTEST_TRANSPORT_SENT:format(bytes, chunks, self.SELFTEST_TIMEOUT))
+	info(L.SELFTEST_TRANSPORT_SENT:format(bytes, chunks, friendName, self.SELFTEST_TIMEOUT))
 	C_Timer.After(self.SELFTEST_TIMEOUT, function()
 		if not done then
 			done = true
 			ns.Comm:UnregisterHandlers(self)
 			result(false, L.SELFTEST_TRANSPORT_TIMEOUT:format(self.SELFTEST_TIMEOUT))
 		end
+	end)
+end
+
+----------------------------------------------------------------------
+-- Echo for a friend's self-test
+----------------------------------------------------------------------
+
+-- A connected friend's /lp selftest whispers us a SELFTEST message; we
+-- whisper the same payload back to that friend only (Comm already dropped
+-- it if they aren't on our list). Only the two known fields are echoed,
+-- at most once per ECHO_COOLDOWN per friend, never in test mode.
+TestMode.echoOwner = {} -- separate owner: SelfTest unregisters its own handlers
+TestMode.echoed = {}    -- fullName -> GetTime() of the last echo
+
+function TestMode:OnSelfTestPing(data, sender, meta)
+	if meta.test or self.enabled or type(data) ~= "table" then
+		return
+	end
+	if type(data.text) ~= "string" or #data.text > self.MAX_ECHO_TEXT or type(data.sum) ~= "number" then
+		return
+	end
+	local now = GetTime()
+	local last = self.echoed[sender]
+	if last and now - last < self.ECHO_COOLDOWN then
+		return
+	end
+	self.echoed[sender] = now
+	ns.Comm:Send(ns.Comm.SELFTEST_ECHO, { text = data.text, sum = data.sum }, { scope = "friends", to = { sender }, reply = true })
+end
+
+function TestMode:OnEnable()
+	ns.Comm:RegisterHandler(self.echoOwner, ns.Comm.SELFTEST, function(_, data, sender, meta)
+		self:OnSelfTestPing(data, sender, meta)
 	end)
 end

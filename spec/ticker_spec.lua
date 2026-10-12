@@ -149,7 +149,7 @@ describe("Ticker", function()
 			assert.are.equal(0, #mock.rendered)
 
 			mock:LeaveInstance()
-			mock:Advance(1)
+			mock:Advance(3) -- waits COMBINE_DELAY for friends leaving too
 			assert.are.equal("Me left The Deadmines.", H.lastRendered(mock))
 			mock:Advance(20 * 60)
 			mock:EnterInstance("Wailing Caverns", "party", 43)
@@ -202,8 +202,8 @@ describe("Ticker", function()
 			local evil = ns.Comm:Encode({ v = 1, t = "TICK", s = 1, id = 1, d = {
 				k = "enter", i = "|Hitem:1|h[Free Gold]|h|TInterface\\x:999|t", c = "|cff000000",
 			} })
-			mock:Fire("CHAT_MSG_ADDON", "LPiml", evil, "PARTY", "Max-TestRealm")
-			mock:Advance(1)
+			mock:Fire("CHAT_MSG_ADDON", "LPiml", evil, "WHISPER", "Max-TestRealm")
+			mock:Advance(3)
 			local shown = mock.rendered[#mock.rendered]
 			assert.is_truthy(shown:find("||Hitem:1||h[Free Gold]||h||TInterface", 1, true))
 			-- with escaped pipes removed, no link or foreign texture is left
@@ -362,6 +362,76 @@ describe("Ticker", function()
 			ns.Events:SetSimulatedEncounter(false)
 			mock:Advance(3)
 			assert.are.equal(1, #mock.sounds)
+		end)
+	end)
+
+	describe("friends' events", function()
+		local function friendDeath(ns, id)
+			ns.Comm:SimulateReceive("Max", "TICK", { k = "death", c = "WARRIOR" })
+		end
+
+		it("'Ticker messages from friends': Banner (default), Chat line only, Off", function()
+			local mock, ns = H.client({ testMode = true })
+			assert.are.equal("banner", ns.Options:Get("ticker.friends"))
+			friendDeath(ns)
+			mock:Advance(6)
+			assert.are.equal(1, #mock.rendered)
+			assert.are.equal(1, #mock.sounds)
+
+			ns.Options:Set("ticker.friends", "chat")
+			local lines = #mock.chat
+			friendDeath(ns)
+			mock:Advance(6)
+			assert.are.equal(1, #mock.rendered) -- no new banner
+			assert.are.equal(1, #mock.sounds)   -- and no sound
+			assert.are.equal(lines + 1, #mock.chat)
+			assert.is_true(mock.chat[#mock.chat]:find("Max", 1, true) ~= nil)
+
+			ns.Options:Set("ticker.friends", "off")
+			lines = #mock.chat
+			friendDeath(ns)
+			mock:Advance(6)
+			assert.are.equal(1, #mock.rendered)
+			assert.are.equal(lines, #mock.chat)
+			assert.are.equal(3, ns:GetModule("Ticker").Stats:GetSessionDeaths("Max-TestRealm")) -- counted every time
+
+			ns.Slash:Dispatch("sim death") -- own events are not affected
+			mock:Advance(6)
+			assert.are.equal(2, #mock.rendered)
+			ns.Options:Set("ticker.friends", "nonsense") -- only the offered values are taken
+			assert.are.equal("off", ns.Options:Get("ticker.friends"))
+		end)
+
+		it("chat-line-only events during a boss come out as chat lines afterwards, never as banners", function()
+			local mock, ns = H.client({ testMode = true })
+			ns.Options:Set("ticker.friends", "chat")
+			ns.Events:SetSimulatedEncounter(true, "Boss")
+			friendDeath(ns)
+			mock:Advance(3)
+			assert.is_false(mock:ChatContains("Max|r died"))
+			ns.Events:SetSimulatedEncounter(false)
+			mock:Advance(5)
+			assert.is_true(mock:ChatContains("During the boss:"))
+			assert.are.equal(0, #mock.rendered)
+		end)
+
+		it("friends entering the same dungeon together get one banner with all names", function()
+			local clients = H.friends({
+				{ name = "Me", class = "HUNTER" },
+				{ name = "Max", class = "WARRIOR" },
+				{ name = "Lootius", class = "MAGE" },
+			})
+			local me, max, lootius = clients[1], clients[2], clients[3]
+			me:Advance(40) -- login traffic (handshakes, stats) is through ChatThrottleLib
+			me.rendered = {}
+			max:EnterInstance("The Deadmines", "party", 36)
+			me:Advance(0.5) -- Max is a moment faster
+			lootius:EnterInstance("The Deadmines", "party", 36)
+			me:Advance(10)
+			local plain = H.renderedPlain(me)
+			assert.are.equal(1, #plain)
+			assert.are.equal("Max and Lootius entered The Deadmines.", plain[1])
+			assert.is_true(me:ChatContains("|cffc69b6dMax|r and |cff3fc7ebLootius|r entered The Deadmines."))
 		end)
 	end)
 

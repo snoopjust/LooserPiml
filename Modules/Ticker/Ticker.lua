@@ -1,7 +1,9 @@
--- Ticker: announces what happens to group members. Detection of the own
--- player's events lives in Core/PlayerEvents.lua; the Ticker shows them
--- locally and sends them to LooserPiml friends in the group (never to
--- anyone else, see Core/Friends.lua); receivers count and display them.
+-- Ticker: announces what happens to your LooserPiml friends, wherever
+-- they are: grouped or not doesn't matter. Detection of the own player's
+-- events lives in Core/PlayerEvents.lua; the Ticker shows them locally and
+-- sends them to every connected friend (never to anyone else, see
+-- Core/Friends.lua); receivers count and display them as a banner, a chat
+-- line only, or not at all (setting "Ticker messages from friends").
 --
 -- Events (MVP): level up, death (with a "drowned" variant), entering and
 -- leaving a dungeon or raid.
@@ -22,12 +24,15 @@ Ticker.MSG = "TICK"
 Ticker.KINDS = { death = true, levelup = true, enter = true, leave = true }
 Ticker.ANNOUNCED_INSTANCES = { party = true, raid = true } -- not battlegrounds/arenas/scenarios
 Ticker.MAX_TEXT = 64 -- max length of names coming from other clients
+Ticker.FRIEND_MODES = { banner = true, chat = true, off = true }
 
 Ticker.defaults = {
 	stats = {},     -- session/all-time counters from TICK messages, see Stats.lua
 	chatLog = true, -- also print each event as a local chat line
 	-- Which messages are shown (display only: stats and broadcasting don't care)
 	show = { levelup = true, death = true, drowned = true, dungeon = true, raid = true, bossRecap = true, own = true },
+	-- How friends' events are shown: "banner" (banner + chat line), "chat" (chat line only), "off"
+	friendsDisplay = "banner",
 	-- Banner look; point = { point, relativePoint, x, y } once moved
 	banner = { hold = 4, size = 40, sound = true },
 }
@@ -65,9 +70,29 @@ function Ticker:OnInitialize()
 	self:RegisterOptions()
 end
 
+function Ticker:GetFriendsDisplay()
+	local mode = self.db.friendsDisplay
+	return self.FRIEND_MODES[mode] and mode or "banner"
+end
+
 function Ticker:RegisterOptions()
 	local Options = ns.Options
 	Options:AddSection("ticker", L.OPT_SECTION_TICKER, 10)
+	Options:Add("ticker", {
+		type = "dropdown", key = "ticker.friends", label = L.OPT_TICKER_FRIENDS, tooltip = L.OPT_TICKER_FRIENDS_TIP,
+		default = "banner",
+		values = {
+			{ value = "banner", label = L.OPT_TICKER_FRIENDS_BANNER },
+			{ value = "chat", label = L.OPT_TICKER_FRIENDS_CHAT },
+			{ value = "off", label = L.OPT_TICKER_FRIENDS_OFF },
+		},
+		get = function()
+			return self:GetFriendsDisplay()
+		end,
+		set = function(value)
+			self.db.friendsDisplay = value
+		end,
+	})
 	for _, entry in ipairs({
 		{ "levelup", L.OPT_SHOW_LEVELUP },
 		{ "death", L.OPT_SHOW_DEATH },
@@ -173,9 +198,8 @@ function Ticker:OnOwnEvent(kind, data, isTest)
 	if self:ShouldShow(data, true) then
 		self.Display:ShowEvent(me, data, { test = isTest })
 	end
-	-- "group": confirmed LooserPiml friends in our group. The Ticker
-	-- announces what happens in the group, not to friends elsewhere.
-	return ns.Comm:Send(self.MSG, data, { scope = "group" })
+	-- "friends": every connected LooserPiml friend, grouped or not.
+	return ns.Comm:Send(self.MSG, data, { scope = "friends" })
 end
 
 function Ticker:OnPlayerDead(_, info)
@@ -238,9 +262,11 @@ function Ticker:OnTick(data, sender, meta)
 		ns.Log:Debug("Ignored malformed TICK from %s", tostring(sender))
 		return
 	end
+	-- Always counted; how (or whether) it is shown is the receiver's choice.
 	self.Stats:Record(sender, event, meta.test)
-	if self:ShouldShow(event, false) then
-		self.Display:ShowEvent(sender, event, { late = meta.late, test = meta.test })
+	local mode = self:GetFriendsDisplay()
+	if mode ~= "off" and self:ShouldShow(event, false) then
+		self.Display:ShowEvent(sender, event, { late = meta.late, test = meta.test, chatOnly = mode == "chat" })
 	end
 end
 
@@ -249,7 +275,7 @@ end
 ----------------------------------------------------------------------
 
 -- name == nil simulates the player (local display + loopback broadcast);
--- otherwise a message "from" that (fake) group member is received.
+-- otherwise a message "from" that (fake) friend is received.
 -- Simulations bypass Core/PlayerEvents on purpose, so Stats never sees them.
 function Ticker:Simulate(kind, name)
 	local data

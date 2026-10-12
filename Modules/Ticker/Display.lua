@@ -3,6 +3,13 @@
 --
 -- During a boss encounter banners are held and shown afterwards, prefixed
 -- with "During the boss:".
+--
+-- Friends who enter or leave the same instance at about the same time get
+-- one banner ("Max and Lootius entered The Deadmines."): enter/leave
+-- events wait COMBINE_DELAY seconds for others.
+--
+-- Entries flagged chatOnly (setting "Ticker messages from friends: chat
+-- line only") never become banners or play sounds.
 local _, ns = ...
 local L = ns.L
 
@@ -18,6 +25,7 @@ Display.MAX_HELD_SHOWN = 5 -- after an encounter, show at most this many banners
 Display.OFFSET_Y = 250     -- banner position above screen center
 Display.WATCH_INTERVAL = 2 -- seconds; re-check while holding in case the end event got lost
 Display.FONT_SIZE = 40     -- default (setting: banner.size); GameFontNormalHuge is only ~24, too easy to overlook
+Display.COMBINE_DELAY = 2  -- seconds enter/leave events wait for friends doing the same
 
 local function settings()
 	return Ticker.db and Ticker.db.banner or {}
@@ -47,8 +55,9 @@ Display.SOUNDS = {
 	levelup = 888,
 }
 
-Display.queue = {} -- entries waiting for the banner
-Display.held = {}  -- entries held during an encounter
+Display.queue = {}   -- entries waiting for the banner
+Display.held = {}    -- entries held during an encounter
+Display.pending = {} -- enter/leave events collecting names, by kind|instance|late|test
 Display.showing = false
 
 -- WoW fonts have no emoji glyphs, so icons are texture escapes.
@@ -71,8 +80,17 @@ function Display.Pick(count)
 	return math.random(count)
 end
 
--- Builds a display entry: { icon, text, test, late }
-function Display:Format(sender, data)
+-- "Max", "Max and Lena", "Max, Lena and Jo"
+function Display.JoinNames(names)
+	if #names <= 1 then
+		return names[1] or ""
+	end
+	return table.concat(names, L.NAMES_SEPARATOR, 1, #names - 1) .. L.NAMES_AND .. names[#names]
+end
+
+-- Builds a display entry: { icon, text, variant }. nameText (optional)
+-- replaces the sender's name, for combined entries.
+function Display:Format(sender, data, nameText)
 	local kind = data.k
 	local variant = kind
 	local count = Ticker.Stats:GetSessionDeaths(sender)
@@ -86,7 +104,7 @@ function Display:Format(sender, data)
 	local templates = L.TICKER[variant]
 	local template = templates[self.Pick(#templates)]
 	local values = {
-		name = ns.Roster:ColorName(sender, data.c),
+		name = nameText or ns.Roster:ColorName(sender, data.c),
 		level = tostring(data.lvl or "?"),
 		count = tostring(count),
 		zone = data.z or L.UNKNOWN_PLACE,
@@ -113,16 +131,59 @@ function Display:Compose(entry)
 	return text
 end
 
--- opts: test (simulated), late ("encounter" | "lockdown": sender held it back)
+-- opts: test (simulated), late ("encounter" | "lockdown": sender held it
+-- back), chatOnly (no banner, no sound)
 function Display:ShowEvent(sender, data, opts)
 	opts = opts or {}
-	local entry = self:Format(sender, data)
+	if (data.k == "enter" or data.k == "leave") and data.i then
+		return self:Collect(sender, data, opts)
+	end
+	return self:Show(self:Format(sender, data), opts)
+end
+
+-- Enter/leave: the first event of a kind + instance waits COMBINE_DELAY
+-- seconds; friends doing the same meanwhile join its banner. A banner is
+-- shown if any of them wants one.
+function Display:Collect(sender, data, opts)
+	local key = table.concat({ data.k, data.i, tostring(opts.late), tostring(opts.test) }, "|")
+	local batch = self.pending[key]
+	if batch then
+		if not batch.senders[sender] then
+			batch.senders[sender] = true
+			batch.names[#batch.names + 1] = ns.Roster:ColorName(sender, data.c)
+		end
+		batch.chatOnly = batch.chatOnly and opts.chatOnly
+		return "combined"
+	end
+	batch = {
+		sender = sender,
+		data = data,
+		opts = opts,
+		chatOnly = opts.chatOnly,
+		senders = { [sender] = true },
+		names = { ns.Roster:ColorName(sender, data.c) },
+	}
+	self.pending[key] = batch
+	C_Timer.After(self.COMBINE_DELAY, function()
+		self.pending[key] = nil
+		local entry = self:Format(batch.sender, batch.data, Display.JoinNames(batch.names))
+		self:Show(entry, { test = batch.opts.test, late = batch.opts.late, chatOnly = batch.chatOnly })
+	end)
+	return "collecting"
+end
+
+function Display:Show(entry, opts)
 	entry.test = opts.test
 	entry.late = opts.late
+	entry.chatOnly = opts.chatOnly
 	if ns.Events:IsEncounterActive() then
 		self.held[#self.held + 1] = entry
 		self:WatchEncounter()
 		return "held"
+	end
+	if entry.chatOnly then
+		self:PrintChat(self:Compose(entry))
+		return "chat"
 	end
 	self:Enqueue(entry)
 	return "queued"
@@ -184,8 +245,19 @@ function Display:OnEncounterEnd()
 		self:WatchEncounter() -- the client still reports a fight (next pull?)
 		return
 	end
-	local held = self.held
+	local held, chatOnly = {}, {}
+	for _, entry in ipairs(self.held) do
+		entry.late = "encounter"
+		if entry.chatOnly then
+			chatOnly[#chatOnly + 1] = entry
+		else
+			held[#held + 1] = entry
+		end
+	end
 	self.held = {}
+	for _, entry in ipairs(chatOnly) do
+		self:PrintChat(self:Compose(entry))
+	end
 	if Ticker.db and Ticker.db.show and Ticker.db.show.bossRecap == false then
 		-- Recap switched off: keep the record in chat, no banners.
 		for _, entry in ipairs(held) do

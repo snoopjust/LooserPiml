@@ -44,7 +44,7 @@ describe("Main window", function()
 			inSpecial = inSpecial or name == "LooserPimlMainFrame"
 		end
 		assert.is_true(inSpecial)
-		assert.is_true(H.hasText(w.frame, "LooserPiml · Group stats"))
+		assert.is_true(H.hasText(w.frame, "LooserPiml · Friends"))
 		w:Toggle()
 		assert.is_false(w:IsShown())
 	end)

@@ -96,7 +96,7 @@ describe("Version", function()
 		assert.is_true(sent[#sent].d.reply)
 	end)
 
-	it("greets only listed friends who join, one HELLO each, never the others", function()
+	it("greets only listed friends who come online, one whispered HELLO each, never the others", function()
 		local mock, ns = H.client({ version = "v0.2.0", friends = { "Max", "Kim" } })
 		local function hellos()
 			local list = {}
@@ -109,17 +109,19 @@ describe("Version", function()
 		end
 		mock:JoinGroup({ { name = "Max", class = "WARRIOR" } })
 		mock:JoinGroup({ { name = "Max", class = "WARRIOR" }, { name = "Lena", class = "MAGE" } })
-		mock:JoinGroup({ { name = "Max", class = "WARRIOR" }, { name = "Lena", class = "MAGE" }, { name = "Kim", class = "ROGUE" } })
+		mock.friendList.Kim = { connected = true } -- Kim logs in somewhere else
+		mock:Fire("FRIENDLIST_UPDATE")
 		mock:Advance(1)
 		local sent = hellos()
 		assert.are.equal(2, #sent)
-		assert.are.equal("PARTY", sent[1].chatType) -- only Max in the group: the group channel reaches nobody else
-		assert.are.equal("WHISPER", sent[2].chatType) -- Lena (not listed) is in the group now
+		assert.are.equal("WHISPER", sent[1].chatType)
+		assert.are.equal("Max", sent[1].target)
+		assert.are.equal("WHISPER", sent[2].chatType)
 		assert.are.equal("Kim", sent[2].target)
-		mock:JoinGroup({ { name = "Max", class = "WARRIOR" }, { name = "Lena", class = "MAGE" } })
-		mock:JoinGroup({ { name = "Max", class = "WARRIOR" }, { name = "Lena", class = "MAGE" }, { name = "Kim", class = "ROGUE" } })
+		mock:Fire("FRIENDLIST_UPDATE")
+		mock:JoinGroup({ { name = "Max", class = "WARRIOR" } })
 		mock:Advance(1)
-		assert.are.equal(2, #hellos()) -- Kim again within the cooldown: no second HELLO
+		assert.are.equal(2, #hellos()) -- nothing new: nobody came online again
 	end)
 
 	it("strips escape sequences from versions received over the network", function()

@@ -159,6 +159,27 @@ describe("Options", function()
 			assert.are.equal(4242, mock.settings.opened)
 		end)
 
+		it("offers 'Ticker messages from friends' as a dropdown (Banner / Chat line only / Off)", function()
+			local mock = H.client()
+			local dropdown
+			for _, init in ipairs(mock.settings.registered.layout.initializers) do
+				if init.kind == "dropdown" then
+					dropdown = init
+				end
+			end
+			assert.is_table(dropdown)
+			assert.are.equal("Ticker messages from friends", dropdown.setting.name)
+			assert.are.equal("string", dropdown.setting.varType)
+			local labels = {}
+			for _, option in ipairs(dropdown.options()) do
+				labels[#labels + 1] = option.value .. "=" .. option.label
+			end
+			assert.are.same({ "banner=Banner", "chat=Chat line only", "off=Off" }, labels)
+			assert.are.equal("banner", dropdown.setting:GetValue())
+			dropdown.setting:SetValue("chat")
+			assert.are.equal("chat", mock.env.LooserPimlDB.modules.Ticker.friendsDisplay)
+		end)
+
 		it("asks for confirmation before resetting my stats", function()
 			local mock, ns = H.client()
 			mock:Fire("PLAYER_DEAD")

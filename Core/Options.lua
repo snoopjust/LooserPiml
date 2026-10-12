@@ -8,12 +8,13 @@
 -- they were changed by a slash command.
 --
 -- Item fields:
---   type     "checkbox" | "slider" | "button"
+--   type     "checkbox" | "slider" | "dropdown" | "button"
 --   key      unique id ("ticker.death"), not needed for buttons
 --   label, tooltip
---   get(), set(value)                checkbox/slider
---   default                          checkbox/slider
+--   get(), set(value)                checkbox/slider/dropdown
+--   default                          checkbox/slider/dropdown
 --   min, max, step, format(value)    slider
+--   values = { { value, label } }    dropdown (string values)
 --   buttonText, onClick()            button
 --
 -- Pages with their own frame (lists that change at runtime, like the
@@ -73,10 +74,21 @@ function Options:Get(key)
 	return item and item.get and item.get()
 end
 
+local function isChoice(item, value)
+	for _, choice in ipairs(item.values or {}) do
+		if choice.value == value then
+			return true
+		end
+	end
+	return false
+end
+
 function Options:Set(key, value)
 	local item = assert(self:Find(key), "unknown option " .. tostring(key))
 	if item.type == "slider" then
 		value = ns.Util.Clamp(value, item.min, item.max)
+	elseif item.type == "dropdown" and not isChoice(item, value) then
+		return -- not one of the offered values
 	end
 	item.set(value)
 	ns.Events:Fire("LP_OPTION_CHANGED", key, value)
@@ -97,6 +109,8 @@ end
 --   Settings.RegisterProxySetting(category, variable, varType, name, default, get, set)
 --   Settings.CreateCheckbox(category, setting, tooltip)
 --   Settings.CreateSlider(category, setting, options, tooltip)
+--   Settings.CreateDropdown(category, setting, optionsFunc, tooltip), where
+--     optionsFunc returns Settings.CreateControlTextContainer():GetData()
 --   CreateSettingsButtonInitializer(name, buttonText, onClick, tooltip, addSearchTags)
 --   CreateSettingsListSectionHeaderInitializer(name, tooltip)
 --   Settings.RegisterCanvasLayoutSubcategory(parentCategory, frame, name) -> subcategory
@@ -117,7 +131,7 @@ function Options:BuildPanel()
 	if not layout and SettingsPanel and SettingsPanel.GetLayout then
 		layout = SettingsPanel:GetLayout(category)
 	end
-	local varType = Settings.VarType or { Boolean = "boolean", Number = "number" }
+	local varType = Settings.VarType or { Boolean = "boolean", Number = "number", String = "string" }
 	for _, section in ipairs(self.sections) do
 		if layout and CreateSettingsListSectionHeaderInitializer then
 			layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(section.title))
@@ -139,6 +153,18 @@ function Options:BuildPanel()
 					options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, item.format)
 				end
 				Settings.CreateSlider(category, setting, options, item.tooltip)
+			elseif item.type == "dropdown" and Settings.CreateDropdown and Settings.CreateControlTextContainer then
+				local setting = Settings.RegisterProxySetting(category, variableName(item.key), varType.String,
+					item.label, item.default, item.get, function(value)
+						self:Set(item.key, value)
+					end)
+				Settings.CreateDropdown(category, setting, function()
+					local container = Settings.CreateControlTextContainer()
+					for _, choice in ipairs(item.values) do
+						container:Add(choice.value, choice.label)
+					end
+					return container:GetData()
+				end, item.tooltip)
 			elseif item.type == "button" and layout and CreateSettingsButtonInitializer then
 				layout:AddInitializer(CreateSettingsButtonInitializer(item.label, item.buttonText, function()
 					ns.SafeCall(item.onClick)

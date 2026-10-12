@@ -250,8 +250,9 @@ function Stats:TakeElapsed()
 	return elapsed
 end
 
--- Group time: total and per LooserPiml friend in the group (handshake
--- answered this session).
+-- Time spent grouped: total and per LooserPiml friend in the group
+-- (handshake answered this session). Grouping is only recorded as context
+-- here; nothing in LooserPiml requires it.
 function Stats:Tick()
 	self:AccumulatePlayed()
 	local elapsed = math.floor(self:TakeElapsed() + 0.5)

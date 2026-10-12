@@ -1,9 +1,9 @@
 -- Version handshake, only with LooserPiml friends (Core/Friends.lua).
 --
 -- HELLO goes only to listed friends who are online: after login, when a
--- listed friend joins the group or comes online, and when you add someone
--- (Friends:UpdateOnline calls Greet). Never to anyone else: there is no
--- discovery broadcast to find out who in a group runs LooserPiml.
+-- listed friend comes online, and when you add someone (Friends:UpdateOnline
+-- calls Greet). Never to anyone else: there is no discovery broadcast to
+-- find out who runs LooserPiml.
 -- A friend's client answers a (non-reply) HELLO only if we are on their
 -- list too (it drops our message otherwise), so receiving their HELLO
 -- tells us the friendship is mutual (Friends:OnHandshake).
@@ -82,8 +82,8 @@ function Version:GetComparable()
 end
 
 -- Keeps the names not contacted within HELLO_COOLDOWN (per table) and
--- stamps them. Protects against bursts (several roster updates in a row)
--- and against a friend's client answering in a loop.
+-- stamps them. Protects against bursts (several friends-list updates in a
+-- row) and against a friend's client answering in a loop.
 local function takeDue(stamps, names, cooldown)
 	local now = GetTime()
 	local due = {}
@@ -107,8 +107,7 @@ local function send(self, targets, isReply)
 	}, { scope = "handshake", to = targets, reply = isReply })
 end
 
--- HELLO to these listed friends. One group message if they are the whole
--- group, otherwise one whisper each (decided by Friends:Route).
+-- HELLO to these listed friends, one whisper each (Friends:Route).
 function Version:Greet(names)
 	local due = takeDue(self.greeted, names, self.HELLO_COOLDOWN)
 	if #due == 0 then
@@ -167,16 +166,27 @@ function Version:OnHello(data, sender, meta)
 	end
 end
 
+-- Your version, then every LooserPiml friend (and the fake friends in
+-- test mode) with the version they reported this session.
 function Version:PrintVersions()
 	ns.Log:Print(L.VERSION_SELF, self:GetCurrent(), ns.Comm.PROTOCOL)
-	local others = ns.Roster:GetOthers()
-	if #others == 0 then
+	local entries = {}
+	for _, friend in ipairs(ns.Friends:GetList()) do
+		entries[#entries + 1] = { name = friend.name, class = friend.class }
+	end
+	for _, member in pairs(ns.Roster.fake) do
+		entries[#entries + 1] = { name = member.name, class = member.class }
+	end
+	if #entries == 0 then
 		ns.Log:Print(L.VERSION_NONE)
 		return
 	end
-	for _, member in ipairs(others) do
-		local info = self.known[member.name]
-		ns.Log:Print(L.VERSION_MEMBER, ns.Roster:ColorName(member.name, member.class), info and info.version or L.VERSION_UNKNOWN)
+	table.sort(entries, function(a, b)
+		return a.name < b.name
+	end)
+	for _, entry in ipairs(entries) do
+		local info = self.known[entry.name]
+		ns.Log:Print(L.VERSION_MEMBER, ns.Roster:ColorName(entry.name, entry.class), info and info.version or L.VERSION_UNKNOWN)
 	end
 end
 

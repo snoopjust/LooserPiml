@@ -5,17 +5,19 @@
 --
 -- Add by name (edit box), add from the current group (one button per real
 -- group member who isn't listed yet; never the fake test-mode members),
--- remove per row. Removing takes effect at once: nothing is sent to that
--- player any more, not even messages that are still held.
+-- add from the WoW character friends list (online ones first), remove per
+-- row. Removing takes effect at once: nothing is sent to that player any
+-- more, not even messages that are still held.
 local _, ns = ...
 local L = ns.L
 
 local Panel = {}
 ns:RegisterCore("FriendsPanel", Panel)
 
-Panel.MAX_ROWS = 8
-Panel.MAX_CANDIDATES = 10 -- "Add from group" buttons (two rows of five)
+Panel.MAX_ROWS = 7
+Panel.MAX_CANDIDATES = 5 -- buttons per "Add from ..." row
 Panel.ROW_HEIGHT = 24
+Panel.LIST_TOP = -218 -- y of the first list row
 
 Panel.instances = {} -- every built panel, refreshed together
 
@@ -49,7 +51,7 @@ end
 function Panel:CreateRow(frame, index)
 	local row = CreateFrame("Frame", nil, frame)
 	row:SetSize(560, self.ROW_HEIGHT)
-	row:SetPoint("TOPLEFT", 4, -206 - (index - 1) * self.ROW_HEIGHT)
+	row:SetPoint("TOPLEFT", 4, self.LIST_TOP - (index - 1) * self.ROW_HEIGHT)
 	row.name = Window:CreateText(row, "GameFontHighlight", THEME.text)
 	row.name:SetPoint("LEFT", 4, 0)
 	row.name:SetWidth(220)
@@ -65,6 +67,54 @@ function Panel:CreateRow(frame, index)
 	end)
 	row.remove:SetPoint("RIGHT", -4, 0)
 	return row
+end
+
+-- A label plus MAX_CANDIDATES "+ Name" buttons and a line for "nobody".
+function Panel:CreateCandidateRow(frame, label, y)
+	local line = { buttons = {} }
+	line.label = Window:CreateText(frame, "GameFontNormal", THEME.gold)
+	line.label:SetPoint("TOPLEFT", 4, y - 4)
+	line.label:SetText(label)
+	for i = 1, self.MAX_CANDIDATES do
+		local button = Window:CreateButton(frame, "", 84, 20, function(b)
+			if b.member then
+				local full, err = ns.Friends:Add(b.member)
+				self:SetMessage(full and L.FRIENDS_ADDED:format(full) or err)
+			end
+		end)
+		button:SetPoint("TOPLEFT", 150 + (i - 1) * 88, y)
+		line.buttons[i] = button
+	end
+	line.none = Window:CreateText(frame, "GameFontHighlightSmall", THEME.muted)
+	line.none:SetPoint("TOPLEFT", 150, y - 4)
+	line.none:SetWidth(430)
+	return line
+end
+
+-- Fills a candidate row; returns how many candidates didn't fit.
+function Panel:FillCandidates(line, candidates, noneText)
+	for i, button in ipairs(line.buttons) do
+		local member = candidates[i]
+		if member then
+			button.member = member.name
+			local name = Window:ColorName(member.name, member.class)
+			if member.connected == false then
+				name = "|cff999999" .. ns.Roster:Short(member.name) .. "|r" -- offline WoW friend
+			end
+			button.label:SetText("+ " .. name)
+			button:Show()
+		else
+			button.member = nil
+			button:Hide()
+		end
+	end
+	if #candidates == 0 then
+		line.none:SetText(noneText)
+		line.none:Show()
+	else
+		line.none:Hide()
+	end
+	return math.max(0, #candidates - self.MAX_CANDIDATES)
 end
 
 function Panel:Create(parent)
@@ -103,35 +153,23 @@ function Panel:Create(parent)
 	frame.message:SetPoint("TOPLEFT", 150, -102)
 	frame.message:SetWidth(430)
 
-	-- Add from group
-	frame.groupLabel = Window:CreateText(frame, "GameFontNormal", THEME.gold)
-	frame.groupLabel:SetPoint("TOPLEFT", 4, -126)
-	frame.groupLabel:SetText(L.FRIENDS_ADD_FROM_GROUP)
-	frame.candidates = {}
-	for i = 1, self.MAX_CANDIDATES do
-		local button = Window:CreateButton(frame, "", 84, 20, function(b)
-			if b.member then
-				local full, err = ns.Friends:Add(b.member)
-				self:SetMessage(full and L.FRIENDS_ADDED:format(full) or err)
-			end
-		end)
-		local column, line = (i - 1) % 5, math.floor((i - 1) / 5)
-		button:SetPoint("TOPLEFT", 150 + column * 88, -122 - line * 24)
-		frame.candidates[i] = button
-	end
-	frame.noCandidates = Window:CreateText(frame, "GameFontHighlightSmall", THEME.muted)
-	frame.noCandidates:SetPoint("TOPLEFT", 150, -126)
-	frame.noCandidates:SetWidth(430)
+	-- Add from group / from the WoW friends list
+	frame.fromGroup = self:CreateCandidateRow(frame, L.FRIENDS_ADD_FROM_GROUP, -122)
+	frame.fromWoW = self:CreateCandidateRow(frame, L.FRIENDS_ADD_FROM_WOW, -148)
+	frame.wowHint = Window:CreateText(frame, "GameFontHighlightSmall", THEME.muted)
+	frame.wowHint:SetPoint("TOPLEFT", 150, -172)
+	frame.wowHint:SetWidth(430)
+	frame.wowHint:SetText(L.FRIENDS_WOW_HINT)
 
 	-- The list
 	frame.listHeader = Window:CreateText(frame, "GameFontNormal", THEME.gold)
-	frame.listHeader:SetPoint("TOPLEFT", 4, -184)
+	frame.listHeader:SetPoint("TOPLEFT", 4, self.LIST_TOP + 22)
 	frame.rows = {}
 	for i = 1, self.MAX_ROWS do
 		frame.rows[i] = self:CreateRow(frame, i)
 	end
 	frame.empty = Window:CreateText(frame, "GameFontHighlight", THEME.muted)
-	frame.empty:SetPoint("TOPLEFT", 8, -210)
+	frame.empty:SetPoint("TOPLEFT", 8, self.LIST_TOP - 4)
 	frame.empty:SetWidth(560)
 	frame.empty:SetText(L.FRIENDS_EMPTY)
 
@@ -140,7 +178,7 @@ function Panel:Create(parent)
 		frame.page = math.max(1, frame.page - 1)
 		self:Refresh(frame)
 	end)
-	frame.prev:SetPoint("TOPLEFT", 4, -210 - self.MAX_ROWS * self.ROW_HEIGHT)
+	frame.prev:SetPoint("TOPLEFT", 4, self.LIST_TOP - 4 - self.MAX_ROWS * self.ROW_HEIGHT)
 	frame.next = Window:CreateButton(frame, ">", 28, 20, function()
 		frame.page = frame.page + 1
 		self:Refresh(frame)
@@ -173,27 +211,12 @@ function Panel:Refresh(frame)
 	local Friends = ns.Friends
 	frame.message:SetText(self.messageText or "")
 
-	local candidates = Friends:GetGroupCandidates()
-	for i, button in ipairs(frame.candidates) do
-		local member = candidates[i]
-		if member then
-			button.member = member.name
-			button.label:SetText("+ " .. Window:ColorName(member.name, member.class))
-			button:Show()
-		else
-			button.member = nil
-			button:Hide()
-		end
-	end
-	if #candidates == 0 then
-		frame.noCandidates:SetText(ns.Roster:IsInGroup() and L.FRIENDS_NO_CANDIDATES or L.FRIENDS_NOT_IN_GROUP)
-		frame.noCandidates:Show()
-	elseif #candidates > self.MAX_CANDIDATES then
-		frame.noCandidates:Hide()
-		-- More strangers than buttons (a raid): type the name instead.
-		frame.message:SetText(L.FRIENDS_MORE_CANDIDATES:format(#candidates - self.MAX_CANDIDATES))
-	else
-		frame.noCandidates:Hide()
+	local more = self:FillCandidates(frame.fromGroup, Friends:GetGroupCandidates(),
+		ns.Roster:IsInGroup() and L.FRIENDS_NO_CANDIDATES or L.FRIENDS_NOT_IN_GROUP)
+	more = more + self:FillCandidates(frame.fromWoW, Friends:GetWoWFriendCandidates(), L.FRIENDS_NO_WOW_CANDIDATES)
+	if more > 0 and not self.messageText then
+		-- More than fit on the buttons (a raid, a long friends list).
+		frame.message:SetText(L.FRIENDS_MORE_CANDIDATES:format(more))
 	end
 
 	local list = Friends:GetList()

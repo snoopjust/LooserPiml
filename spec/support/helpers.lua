@@ -79,9 +79,9 @@ end
 H.created = {}
 
 -- The communication rule, checked on every single SendAddonMessage call
--- of every test: a whisper goes only to a listed LooserPiml friend, a
--- group message only into a group where every other member is listed, and
--- nothing at all leaves the client in test mode.
+-- of every test: only WHISPER (never PARTY/RAID/INSTANCE_CHAT/GUILD), only
+-- to a listed LooserPiml friend, and nothing at all leaves the client in
+-- test mode.
 local function checkRecipients(mock, call)
 	local ns = mock.ns
 	if not (ns and ns.Friends and ns.DB and ns.DB.data) then
@@ -93,16 +93,10 @@ local function checkRecipients(mock, call)
 	if ns.TestMode:IsEnabled() then
 		violation("sent a " .. tostring(call.chatType) .. " message in test mode")
 	end
-	if call.chatType == "WHISPER" then
-		if not ns.Friends:IsListed(call.target) then
-			violation("whispered " .. tostring(call.target) .. ", who is not on the friends list")
-		end
-	else
-		for full in pairs(call.groupNames) do
-			if not ns.Friends:IsListed(full) then
-				violation(call.chatType .. " message reached " .. full .. ", who is not on the friends list")
-			end
-		end
+	if call.chatType ~= "WHISPER" then
+		violation("sent on " .. tostring(call.chatType) .. " (only WHISPER to friends is allowed)")
+	elseif not ns.Friends:IsListed(call.target) then
+		violation("whispered " .. tostring(call.target) .. ", who is not on the friends list")
 	end
 end
 H.checkRecipients = checkRecipients
@@ -179,6 +173,36 @@ end
 function H.confirm(mock, name)
 	local ns = mock.ns
 	ns.Friends:OnHandshake(ns.Roster:Normalize(name), "v0.2.0")
+end
+
+-- Several connected friends on a shared network, NOT grouped (the normal
+-- case: everyone playing on their own). Each has the others on the WoW
+-- friends list (online) and, unless a spec says otherwise
+-- (friends = {...}), on the LooserPiml friends list.
+-- specs: array of { name, class, ... } (the H.client opts)
+function H.friends(specs)
+	local net = Mock.NewNetwork()
+	local clients = {}
+	for i, spec in ipairs(specs) do
+		local names = {}
+		for j, other in ipairs(specs) do
+			if i ~= j then
+				names[#names + 1] = other.name
+			end
+		end
+		if spec.friends == nil then
+			spec.friends = names
+		end
+		spec.settle = 0
+		local mock = H.client(spec)
+		for _, name in ipairs(names) do
+			mock.friendList[name] = { connected = true }
+		end
+		net:Add(mock)
+		clients[#clients + 1] = mock
+	end
+	net:Advance(7) -- handshakes after login (5 s), stats after that
+	return clients, net
 end
 
 -- Puts several clients into one group on a shared network. Unless a spec

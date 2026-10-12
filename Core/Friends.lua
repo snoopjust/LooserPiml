@@ -1,12 +1,17 @@
 -- LooserPiml friends: the explicit, mutual list of players LooserPiml
--- talks to.
+-- talks to. This circle of friends, not the WoW party or raid, is what
+-- every feature is built around: friends often play separately and only
+-- sometimes group up.
 --
 -- Hard safety rule (CLAUDE.md, STATUS.md): LooserPiml communicates only
 -- with players on this list, and only if they listed us too. Nobody else
 -- ever receives anything from LooserPiml, not even a hidden addon message.
+--   - Transport is always one WHISPER addon message per connected friend.
+--     The PARTY/RAID/INSTANCE_CHAT channels are never used: they would
+--     reach strangers in a mixed group.
 --   - Comm asks Route() who may get a message at the moment it is really
 --     sent, so a message held during a boss never reaches someone who was
---     removed meanwhile, or a stranger who joined the group meanwhile.
+--     removed meanwhile.
 --   - Comm drops every incoming message whose sender isn't listed.
 --   - "Mutual" is learned from the handshake (Version.lua): a listed friend
 --     who answers our HELLO has listed us too, because their client drops
@@ -15,11 +20,14 @@
 --   - No discovery: we never send anything to find out who runs LooserPiml.
 --   - No GUILD channel, no Battle.net.
 --
--- Online: a friend counts as online if they are a connected member of our
--- group, or online on the character friends list (C_FriendList). Whispers
--- only go to online friends: whispering someone offline makes the server
--- answer with a "No player named ..." system message. One exception: a
--- handshake reply may go to a friend who just wrote to us (REPLY_WINDOW).
+-- Connected = listed + answered the handshake this session + online.
+-- Online: on the character friends list as online (C_FriendList; that's
+-- why friends should also be WoW friends), or a connected member of our
+-- group (grouping is only one more source of that information, never a
+-- precondition). Whispers only go to online friends: whispering someone
+-- offline makes the server answer with a "No player named ..." system
+-- message. One exception: a handshake reply may go to a friend who just
+-- wrote to us (REPLY_WINDOW).
 --
 -- Storage: LooserPimlDB.friends["Name-Realm"] = { added, handshake, lastSeen, class, version }
 --   handshake = time of the last answered handshake (nil: never answered)
@@ -30,11 +38,11 @@ local Friends = {}
 ns:RegisterCore("Friends", Friends)
 
 Friends.MAX_FRIENDS = 40
--- Seconds after login before the first handshake: lets the group roster
--- and the friends list arrive from the server.
+-- Seconds after login before the first handshake: lets the friends list
+-- and the group roster arrive from the server.
 Friends.LOGIN_DELAY = 5
 -- A reply may go to a friend who messaged us within this many seconds,
--- even if neither the group nor the friends list shows them online: they
+-- even if neither the friends list nor the group shows them online: they
 -- obviously are, and without the answer the handshake could never finish
 -- when only they have us on their character friends list.
 Friends.REPLY_WINDOW = 30
@@ -48,8 +56,8 @@ Friends.ready = false  -- set LOGIN_DELAY seconds after login
 -- Message scopes (who a message may go to, see Allowed):
 --   "handshake"  listed friends (HELLO only: this is how mutual is learned)
 --   "friends"    listed friends who answered the handshake this session
---   "group"      like "friends", and in our group right now
-Friends.SCOPES = { handshake = true, friends = true, group = true }
+--                (everything else: ticker events, stats, self-test)
+Friends.SCOPES = { handshake = true, friends = true }
 
 function Friends:GetDB()
 	return ns.DB:Get("friends")
@@ -193,6 +201,55 @@ function Friends:GetGroupCandidates()
 	return list
 end
 
+-- Character names on the WoW friends list who aren't listed yet ("Add from
+-- WoW friends list"), online ones first: { name, short, class, connected }.
+-- FriendInfo only has the localized class name; the class file name (for
+-- the color) is looked up in Blizzard's localized class tables.
+-- TODO(verify in-game): LOCALIZED_CLASS_NAMES_MALE/FEMALE exist on Forever.
+local function classFromLocalized(className)
+	if type(className) ~= "string" or ns.IsSecret(className) then
+		return nil
+	end
+	for _, names in ipairs({ LOCALIZED_CLASS_NAMES_MALE or {}, LOCALIZED_CLASS_NAMES_FEMALE or {} }) do
+		for classFile, localized in pairs(names) do
+			if localized == className then
+				return classFile
+			end
+		end
+	end
+	return nil
+end
+
+function Friends:GetWoWFriendCandidates()
+	local list = {}
+	local api = C_FriendList
+	local count = api and api.GetNumFriends and api.GetNumFriends()
+	if ns.IsSecret(count) or type(count) ~= "number" or not api.GetFriendInfoByIndex then
+		return list
+	end
+	for i = 1, count do
+		local info = api.GetFriendInfoByIndex(i)
+		if type(info) == "table" and not ns.IsSecret(info) and type(info.name) == "string" and not ns.IsSecret(info.name) then
+			local full = ns.Roster:Normalize(info.name)
+			if full and not ns.Roster:IsPlayer(full) and not self:IsListed(full) then
+				list[#list + 1] = {
+					name = full,
+					short = ns.Roster:Short(full),
+					class = classFromLocalized(info.className),
+					connected = not ns.IsSecret(info.connected) and info.connected == true,
+				}
+			end
+		end
+	end
+	table.sort(list, function(a, b)
+		if a.connected ~= b.connected then
+			return a.connected
+		end
+		return a.name < b.name
+	end)
+	return list
+end
+
 ----------------------------------------------------------------------
 -- Handshake state
 ----------------------------------------------------------------------
@@ -234,13 +291,9 @@ end
 -- Online state
 ----------------------------------------------------------------------
 
--- Connected member of our group, or online on the character friends list.
--- Battle.net friends are deliberately not used.
+-- Online on the character friends list, or a connected member of our
+-- group. Battle.net friends are deliberately not used.
 function Friends:IsOnline(full)
-	local member = ns.Roster.members[full]
-	if member then
-		return member.connected ~= false
-	end
 	local getInfo = C_FriendList and C_FriendList.GetFriendInfo
 	if getInfo then
 		local info = getInfo(self:GetShortTarget(full))
@@ -248,7 +301,26 @@ function Friends:IsOnline(full)
 			return true
 		end
 	end
-	return false
+	local member = ns.Roster.members[full]
+	return member ~= nil and member.connected ~= false
+end
+
+-- Listed, answered the handshake this session, and online: gets messages.
+function Friends:IsConnected(name)
+	local full = ns.Roster:Normalize(name)
+	return full ~= nil and self:IsConfirmed(full) and self:IsOnline(full)
+end
+
+-- Connected friends, sorted.
+function Friends:GetConnected()
+	local list = {}
+	for full in pairs(self:GetDB()) do
+		if self.confirmed[full] and self:IsOnline(full) then
+			list[#list + 1] = full
+		end
+	end
+	table.sort(list)
+	return list
 end
 
 -- Greets friends who just came online (or were added) and forgets the
@@ -286,13 +358,7 @@ local function heardRecently(self, full)
 end
 
 function Friends:CountOnlineConfirmed()
-	local count = 0
-	for full in pairs(self:GetDB()) do
-		if self.confirmed[full] and self:IsOnline(full) then
-			count = count + 1
-		end
-	end
-	return count
+	return #self:GetConnected()
 end
 
 ----------------------------------------------------------------------
@@ -300,7 +366,7 @@ end
 ----------------------------------------------------------------------
 
 -- May `full` receive a message of this scope? (Online is checked
--- separately, only whispers need it.)
+-- separately in Route.)
 function Friends:Allowed(full, scope)
 	if ns.Roster:IsPlayer(full) or not self:IsListed(full) then
 		return false
@@ -308,13 +374,7 @@ function Friends:Allowed(full, scope)
 	if scope == "handshake" then
 		return true
 	end
-	if not self.confirmed[full] then
-		return false
-	end
-	if scope == "group" then
-		return ns.Roster.members[full] ~= nil
-	end
-	return scope == "friends"
+	return scope == "friends" and self.confirmed[full] == true
 end
 
 local function toSet(names)
@@ -331,51 +391,26 @@ local function toSet(names)
 	return set
 end
 
--- The group channel reaches every member, so it may only be used when
--- every other member may receive this message. Members we can't identify
--- (Roster.unknownMembers) count as strangers.
-function Friends:CanUseGroupChannel(scope, only)
-	if not ns.Roster:GetChannel() or ns.Roster.unknownMembers > 0 then
-		return false
-	end
-	local anyone = false
-	for full in pairs(ns.Roster.members) do
-		if not ns.Roster:IsPlayer(full) then
-			anyone = true
-			if not self:Allowed(full, scope) or (only and not only[full]) then
-				return false
-			end
-		end
-	end
-	return anyone
-end
-
--- How to deliver a message: channel (or nil) plus a sorted array of
--- friends to whisper individually. `to` (optional) restricts the message
--- to these names; isReply allows whispering a `to` friend who just wrote
--- to us (REPLY_WINDOW).
+-- The friends who get a message: a sorted array, one WHISPER each. `to`
+-- (optional) restricts the message to these names; isReply allows
+-- whispering a `to` friend who just wrote to us (REPLY_WINDOW).
+-- Never a group channel, whatever the group looks like.
 function Friends:Route(scope, to, isReply)
 	assert(self.SCOPES[scope], "unknown scope " .. tostring(scope))
 	local only = toSet(to)
-	local channel
-	if self:CanUseGroupChannel(scope, only) then
-		channel = ns.Roster:GetChannel()
-	end
-	local whispers = {}
+	local recipients = {}
 	for full in pairs(self:GetDB()) do
-		local viaChannel = channel and ns.Roster.members[full]
 		local reachable = self:IsOnline(full) or (isReply and only and heardRecently(self, full))
-		if not viaChannel and self:Allowed(full, scope) and (not only or only[full]) and reachable then
-			whispers[#whispers + 1] = full
+		if self:Allowed(full, scope) and (not only or only[full]) and reachable then
+			recipients[#recipients + 1] = full
 		end
 	end
-	table.sort(whispers)
-	return channel, whispers
+	table.sort(recipients)
+	return recipients
 end
 
 function Friends:HasRecipients(scope)
-	local channel, whispers = self:Route(scope)
-	return channel ~= nil or #whispers > 0
+	return #self:Route(scope) > 0
 end
 
 ----------------------------------------------------------------------
@@ -433,24 +468,18 @@ function Friends:OnInitialize()
 	end, "[add|remove <name> | list]", L.HELP_FRIENDS)
 end
 
--- Friends never need slash commands, so tell them once per session why
+-- Friends never need slash commands, so tell them once after login why
 -- nothing is shared while their list is empty (local chat line only).
 function Friends:MaybeHint()
-	if self.hinted or not self.ready or self:Count() > 0 or #ns.Roster:GetRealOthers() == 0 then
+	if self.hinted or self:Count() > 0 then
 		return
 	end
 	self.hinted = true
 	ns.Log:Print(L.FRIENDS_HINT_EMPTY)
 end
 
-function Friends:OnRosterChanged(_, joined, _, isFake)
-	if not isFake and #(joined or {}) > 0 then
-		self:MaybeHint()
-	end
-end
-
 function Friends:OnEnable()
-	ns.Events:Register(self, "LP_ROSTER_CHANGED", "OnRosterChanged")
+	-- Group members' connection state is one more source of "online".
 	ns.Events:Register(self, "LP_ROSTER_UPDATED", "UpdateOnline")
 	-- Fires when the character friends list changes, including friends
 	-- logging in or out.

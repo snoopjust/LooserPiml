@@ -225,46 +225,52 @@ describe("Core", function()
 	end)
 
 	describe("self-test", function()
-		it("reports libraries, roundtrip, loopback and the real group transport", function()
-			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
+		it("reports libraries, roundtrip, loopback and the real transport via a connected friend's echo", function()
+			local clients = H.friends({ { name = "Me" }, { name = "Max", class = "WARRIOR" } })
+			local mock, max = clients[1], clients[2]
+			local ns = mock.ns
+			mock.sent = {}
 			ns.Slash:Dispatch("selftest")
-			mock:Advance(2)
+			mock:Advance(3)
 			assert.is_true(mock:ChatContains("[OK]|r Libraries: CallbackHandler-1.0"))
 			assert.is_true(mock:ChatContains("Serialize + compress roundtrip"))
 			assert.is_true(mock:ChatContains("[OK]|r Loopback dispatch"))
 			assert.is_true(mock:ChatContains("interface=16001"))
-			assert.is_true(mock:ChatContains("Real transport: echo received after"))
+			assert.is_true(mock:ChatContains("Real transport: echo from"))
+			assert.is_true(mock:ChatContains("payload intact"))
 			assert.is_false(mock:ChatContains("[FAIL]"))
-			-- the payload really needed several chunks, on the group channel
+			-- the payload really needed several chunks, whispered to Max only
 			local chunks = 0
 			for _, call in ipairs(mock.sent) do
-				if call.chatType == "PARTY" and ns.Comm:Decode(call.text) == nil then
+				assert.are.equal("WHISPER", call.chatType)
+				assert.are.equal("Max", call.target)
+				if ns.Comm:Decode(call.text) == nil then
 					chunks = chunks + 1 -- a partial chunk can't be decoded on its own
 				end
-				assert.are_not.equal("WHISPER", call.chatType)
 			end
 			assert.is_true(chunks >= 3, "expected a multi-chunk message, got " .. chunks .. " partial chunks")
+			assert.is_false(max:ChatContains("[FAIL]")) -- Max only echoed, silently
 			H.assertNoErrors(mock)
 		end)
 
-		it("is only an info line, not a failure, when solo (whispering yourself is rejected)", function()
-			local mock, ns = H.client()
+		it("is only an info line, not a failure, when no friend is connected", function()
+			local mock, ns = H.client({ group = { { name = "Stranger", class = "ROGUE" } } })
 			ns.Slash:Dispatch("selftest")
-			mock:Advance(12)
-			assert.is_true(mock:ChatContains("not tested, you are not in a group"))
+			mock:Advance(20)
+			assert.is_true(mock:ChatContains("no LooserPiml friend is connected right now"))
 			assert.is_false(mock:ChatContains("[FAIL]"))
 			assert.are.equal(0, #mock.sent)
-			assert.is_false(mock:ChatContains("No player named"))
 		end)
 
 		it("reports a timeout when the echo never arrives", function()
-			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, friends = { "Max" } })
-			mock.net.Flush = function(net)
-				net.pending = {} -- the server swallows everything
+			local clients, net = H.friends({ { name = "Me" }, { name = "Max", class = "WARRIOR" } })
+			local mock = clients[1]
+			net.Flush = function(n)
+				n.pending = {} -- the server swallows everything
 			end
-			ns.Slash:Dispatch("selftest")
-			mock:Advance(11)
-			assert.is_true(mock:ChatContains("Real transport: nothing received within 10 s"))
+			mock.ns.Slash:Dispatch("selftest")
+			mock:Advance(16)
+			assert.is_true(mock:ChatContains("Real transport: nothing received within 15 s"))
 		end)
 
 		it("skips the real transport while addon messages are restricted", function()

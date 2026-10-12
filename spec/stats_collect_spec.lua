@@ -81,6 +81,7 @@ describe("Stats collectors", function()
 			assert.are.equal("Edwin VanCleef", events(mock, "encounter")[1].data.name)
 			assert.are.equal(1, today(mock).n.bossKills)
 			assert.are.equal(1, today(mock).n.bossWipes)
+			mock:Advance(3) -- enter/leave banners wait a moment for friends doing the same
 			assert.are.equal(1, #mock.rendered) -- the Ticker announced the dungeon, not the battleground
 		end)
 

@@ -604,7 +604,7 @@ function Mock:BuildEnv()
 	-- Settings API (signatures as in Blizzard_Settings.lua, Forever 1.60.1)
 	mock.settings = { categories = {}, byVariable = {}, opened = nil }
 	G.Settings = {
-		VarType = { Boolean = "boolean", Number = "number" },
+		VarType = { Boolean = "boolean", Number = "number", String = "string" },
 		RegisterVerticalLayoutCategory = function(name)
 			local layout = { initializers = {} }
 			function layout:AddInitializer(initializer)
@@ -637,6 +637,21 @@ function Mock:BuildEnv()
 			local init = { kind = "slider", setting = setting, options = options, tooltip = tooltip }
 			category.layout:AddInitializer(init)
 			return init
+		end,
+		CreateDropdown = function(category, setting, options, tooltip)
+			local init = { kind = "dropdown", setting = setting, options = options, tooltip = tooltip }
+			category.layout:AddInitializer(init)
+			return init
+		end,
+		CreateControlTextContainer = function()
+			local container = { data = {} }
+			function container:Add(value, label, tooltip)
+				self.data[#self.data + 1] = { value = value, label = label, text = label, tooltip = tooltip }
+			end
+			function container:GetData()
+				return self.data
+			end
+			return container
 		end,
 		CreateSliderOptions = function(minValue, maxValue, rate)
 			local options = { minValue = minValue, maxValue = maxValue, rate = rate }
@@ -969,11 +984,37 @@ function Mock:BuildEnv()
 			return mock.scores[index]
 		end,
 	}
+	-- mock.friendList: name -> { connected, className } (the character
+	-- friends list; "Name" for the own realm, like the real one)
+	local function friendNames()
+		local names = {}
+		for name in pairs(mock.friendList) do
+			names[#names + 1] = name
+		end
+		table.sort(names)
+		return names
+	end
 	G.C_FriendList = {
 		GetFriendInfo = function(name)
-			return mock.friendList[name]
+			local info = mock.friendList[name]
+			if info then
+				info.name = info.name or name
+			end
+			return info
+		end,
+		GetNumFriends = function()
+			return #friendNames()
+		end,
+		GetFriendInfoByIndex = function(index)
+			local name = friendNames()[index]
+			local info = name and mock.friendList[name]
+			if info then
+				info.name = info.name or name
+			end
+			return info
 		end,
 	}
+	G.LOCALIZED_CLASS_NAMES_MALE = { WARRIOR = "Warrior", MAGE = "Mage", PRIEST = "Priest", ROGUE = "Rogue", HUNTER = "Hunter" }
 	G.UnitHonor = function()
 		return mock.honor
 	end

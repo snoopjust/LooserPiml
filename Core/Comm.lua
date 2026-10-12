@@ -2,15 +2,16 @@
 --
 -- Who: only players on the explicit, mutual LooserPiml friends list
 -- (Core/Friends.lua). Every outgoing message has a scope; Friends:Route
--- decides, at the moment it is really sent, between the group channel
--- (only if every other group member may receive it) and individual
--- whispers to online friends. Incoming messages from anyone who isn't on
--- the list are dropped unread.
+-- decides, at the moment it is really sent, which friends get it, and each
+-- of them gets one WHISPER addon message. Whether anyone is grouped doesn't
+-- matter. Incoming messages from anyone who isn't on the list are dropped
+-- unread.
 --
 -- Wire format: AceSerializer -> LibDeflate (deflate + addon-channel encoding)
 -- -> AceComm (chunking) -> ChatThrottleLib (throttling) ->
--- C_ChatInfo.SendAddonMessage on PARTY/RAID (INSTANCE_CHAT in finder
--- groups) or WHISPER. Never GUILD, never Battle.net.
+-- C_ChatInfo.SendAddonMessage with chat type WHISPER. Never PARTY, RAID,
+-- INSTANCE_CHAT or GUILD (they reach players who aren't friends), never
+-- Battle.net.
 --
 -- Envelope: { v = protocol, t = type, s = session, id = seq, d = data, late = reason }
 --
@@ -22,7 +23,7 @@
 --
 -- Usage from modules:
 --   ns.Comm:RegisterHandler(owner, "TYPE", function(owner, data, sender, meta) end)
---   ns.Comm:Send("TYPE", data, { scope = "group" | "friends" | "handshake", prio, key, to, reply })
+--   ns.Comm:Send("TYPE", data, { scope = "friends" | "handshake", prio, key, to, reply })
 local _, ns = ...
 
 local AceComm = LibStub("AceComm-3.0")
@@ -44,7 +45,8 @@ Comm.MAX_AGE = 2 * 60 * 60     -- seconds a held message stays worth sending
 Comm.MAX_ATTEMPTS = 5          -- sends per message before giving up
 Comm.RETRY_INTERVAL = 5        -- seconds between flush attempts while holding
 Comm.FLUSH_DELAY = 1           -- seconds to wait after a restriction lifts
-Comm.SELFTEST = "SELFTEST"     -- the only type accepted from ourselves
+Comm.SELFTEST = "SELFTEST"     -- /lp selftest ping, sent back by the friend as SELFTEST_ECHO
+Comm.SELFTEST_ECHO = "SELFTEST_ECHO"
 Comm.MAX_SEEN = 500            -- remembered message ids (duplicate filter)
 
 local handlers = {} -- type -> array of { owner, fn }
@@ -156,9 +158,9 @@ end
 --   "dropped"  created in test mode, which has ended: never sent for real
 -- Why our own queue on top of ChatThrottleLib's: CTL only retries the
 -- AddonMessageThrottle result. Any other refusal (AddOnMessageLockdown during
--- a boss, NotInGroup, ...) is reported once and the message is dropped.
+-- a boss, TargetOffline, ...) is reported once and the message is dropped.
 -- opts (all optional):
---   scope  who may get it (Friends.SCOPES), default "group"
+--   scope  who may get it (Friends.SCOPES), default "friends"
 --   to     array of names: only these (still checked against the scope)
 --   reply  answer to a friend who just wrote to us (see Friends.REPLY_WINDOW)
 --   prio   ChatThrottleLib priority, default "NORMAL"
@@ -166,7 +168,7 @@ end
 --          one (e.g. stats snapshots: only the latest matters)
 function Comm:Send(msgType, data, opts)
 	opts = opts or {}
-	local scope = opts.scope or "group"
+	local scope = opts.scope or "friends"
 	assert(ns.Friends.SCOPES[scope], "unknown scope " .. tostring(scope))
 	local entry = {
 		t = msgType,
@@ -244,18 +246,15 @@ function Comm:Transmit(entry)
 		return "loopback"
 	end
 
-	-- Resolved now, not when queued: the group, the friends list or who is
-	-- online may have changed while the message was held.
-	local channel, whispers = ns.Friends:Route(entry.scope, entry.to, entry.reply)
-	if not channel and #whispers == 0 then
+	-- Resolved now, not when queued: the friends list or who is online may
+	-- have changed while the message was held.
+	local recipients = ns.Friends:Route(entry.scope, entry.to, entry.reply)
+	if #recipients == 0 then
 		return "nobody"
 	end
 	entry.attempts = entry.attempts + 1
 	entry.failed = false
-	if channel then
-		self:SendCommMessage(self.PREFIX, text, channel, nil, entry.prio, onChunkSent, entry)
-	end
-	for _, full in ipairs(whispers) do
+	for _, full in ipairs(recipients) do
 		self:SendCommMessage(self.PREFIX, text, "WHISPER", ns.Friends:GetShortTarget(full), entry.prio, onChunkSent, entry)
 	end
 	-- Lets senders rate-limit by actual transmissions, including messages
@@ -408,9 +407,9 @@ function Comm:Receive(text, sender, distribution, isTest)
 		return
 	end
 
-	if fromSelf and envelope.t ~= self.SELFTEST then
-		-- The server delivers PARTY/RAID addon messages to the sender too.
-		-- Own events were already displayed locally when they happened.
+	if fromSelf then
+		-- Only test-mode loopback hands our own messages back (whispers are
+		-- never echoed). Own events were already displayed locally.
 		ns.Log:Debug("%s own %s message", isTest and "[test] Looped back" or "Ignored echo of", envelope.t)
 		return
 	end
@@ -450,28 +449,21 @@ function Comm:SimulateReceive(sender, msgType, data, late)
 	self:Receive(self:Encode(envelope), sender, "LOOPBACK", true)
 end
 
--- /lp selftest: a real addon message on the group channel, which the server
--- echoes back to us. Bypasses the hold queue on purpose (the caller skips
--- it in test mode and while restricted).
--- Returns nil plus "solo" when not in a group, or "strangers" when someone
--- in the group isn't on the friends list: the group channel would reach
--- them, so there is no real-transport test then.
+-- /lp selftest: a real multi-chunk addon message whispered to one
+-- connected friend, whose client sends it back (TestMode's echo handler).
+-- Bypasses the hold queue on purpose (the caller skips it in test mode and
+-- while restricted). Returns nil unless `target` is a connected friend.
 -- onResult(didSend) is called once all chunks were handed to the client.
 -- Why not a whisper to ourselves: on Forever the server rejects it ("No
--- player named X is currently playing"), so solo there is no real-transport
--- test. Friends' clients ignore SELFTEST messages (no handler registered).
-function Comm:SendSelfTest(data, onResult)
-	local channel = ns.Roster:GetChannel()
-	if not channel then
-		return nil, "solo"
-	end
-	if not ns.Friends:CanUseGroupChannel("handshake") then
-		return nil, "strangers"
+-- player named X is currently playing").
+function Comm:SendSelfTest(data, target, onResult)
+	if not ns.Friends:IsConnected(target) then
+		return nil
 	end
 	local envelope = { v = self.PROTOCOL, t = self.SELFTEST, s = self.session, id = nextId(), d = data }
 	local text = self:Encode(envelope)
 	local allSent = true
-	self:SendCommMessage(self.PREFIX, text, channel, nil, "NORMAL", function(_, sent, total, didSend)
+	self:SendCommMessage(self.PREFIX, text, "WHISPER", ns.Friends:GetShortTarget(target), "NORMAL", function(_, sent, total, didSend)
 		if didSend == false then
 			allSent = false
 		end

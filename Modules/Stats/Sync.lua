@@ -254,9 +254,9 @@ function Stats:EnableSync()
 	ns.Events:Register(self, "LP_STATS_CHANGED", function()
 		self:RequestBroadcast()
 	end)
-	-- A friend answered the handshake (after login, joining the group or
-	-- coming online): they get our current stats (still at most once per
-	-- BROADCAST_INTERVAL, to everyone confirmed).
+	-- A friend answered the handshake (after login, when they came online
+	-- or were added): they get our current stats (still at most once per
+	-- BROADCAST_INTERVAL, to everyone connected).
 	ns.Events:Register(self, "LP_FRIEND_CONFIRMED", function()
 		self:RequestBroadcast()
 	end)

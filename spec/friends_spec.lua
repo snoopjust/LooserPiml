@@ -94,13 +94,13 @@ describe("LooserPiml friends", function()
 			assert.is_true(H.hasText(frame, "Added Lena-TestRealm"))
 
 			local offered = {}
-			for _, button in ipairs(frame.candidates) do
+			for _, button in ipairs(frame.fromGroup.buttons) do
 				if button.shown and button.member then
 					offered[#offered + 1] = button.member
 				end
 			end
 			assert.are.same({ "Bob-TestRealm", "Max-TestRealm" }, offered) -- real members only, no fake Jo/Kim
-			frame.candidates[2]:Click()
+			frame.fromGroup.buttons[2]:Click()
 			assert.is_true(ns.Friends:IsListed("Max"))
 			assert.is_true(H.hasText(frame, "Your list (2/40)"))
 			assert.is_true(H.hasText(frame, "Max"))
@@ -113,6 +113,31 @@ describe("LooserPiml friends", function()
 			assert.is_false(ns.Friends:IsListed("Lena"))
 			assert.is_true(H.hasText(frame, "Your list (1/40)"))
 			ns.TestMode:Disable()
+		end)
+
+		it("can add from the WoW friends list (online first) and explains why both lists matter", function()
+			local mock, ns = H.client()
+			mock.friendList.Zed = { connected = false, className = "Rogue" }
+			mock.friendList.Lena = { connected = true, className = "Mage" }
+			mock.friendList.Max = { connected = true, className = "Warrior" }
+			ns.Friends:Add("Max")
+			ns.Window:Open("friends")
+			local frame = ns.Window.frame.tabFrames.friends
+			assert.is_true(H.hasText(frame, "Add from WoW friends"))
+			assert.is_true(H.hasText(frame, "Add each other on the WoW friends list too"))
+			local offered, labels = {}, {}
+			for _, button in ipairs(frame.fromWoW.buttons) do
+				if button.shown and button.member then
+					offered[#offered + 1] = button.member
+					labels[#labels + 1] = button.label.text_
+				end
+			end
+			assert.are.same({ "Lena-TestRealm", "Zed-TestRealm" }, offered) -- Max is listed already; online first
+			assert.is_truthy(labels[1]:find("|cff3fc7ebLena|r", 1, true)) -- class color from the localized class name
+			assert.is_truthy(labels[2]:find("|cff999999Zed|r", 1, true)) -- offline: grey
+			frame.fromWoW.buttons[1]:Click()
+			assert.is_true(ns.Friends:IsListed("Lena"))
+			assert.is_true(H.hasText(frame, "Nobody in your group") or H.hasText(frame, "Not in a group."))
 		end)
 
 		it("has its own settings page, reachable from the main settings page", function()
@@ -147,22 +172,30 @@ describe("LooserPiml friends", function()
 			assert.are.equal("friends", ns.Window.selectedTab)
 		end)
 
-		it("tells you once (local chat) why nothing is shared while the list is empty", function()
-			local mock = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
-			mock:JoinGroup({ { name = "Max", class = "WARRIOR" }, { name = "Lena", class = "MAGE" } })
-			local hints = 0
-			for _, line in ipairs(mock.chat) do
-				if line:find("friends list is empty", 1, true) then
-					hints = hints + 1
+		it("tells you once after login (local chat) why nothing is shared while the list is empty", function()
+			local function hints(mock)
+				local n = 0
+				for _, line in ipairs(mock.chat) do
+					if line:find("friends list is empty", 1, true) then
+						n = n + 1
+					end
 				end
+				return n
 			end
-			assert.are.equal(1, hints)
+			local mock = H.client() -- solo
+			assert.are.equal(1, hints(mock))
+			mock:JoinGroup({ { name = "Max", class = "WARRIOR" } })
+			mock:JoinGroup({ { name = "Max", class = "WARRIOR" }, { name = "Lena", class = "MAGE" } })
+			mock:Advance(10)
+			assert.are.equal(1, hints(mock)) -- not again on joining a group
 			assert.are.equal(0, #mock.sent)
+			local withFriends = H.client({ friends = { "Max" } })
+			assert.are.equal(0, hints(withFriends))
 		end)
 	end)
 
 	describe("communication rule", function()
-		it("a group with one non-listed member gets zero PARTY/RAID messages; friends get whispers", function()
+		it("a party/raid with a stranger: zero messages to the stranger, nothing on PARTY/RAID, friends get whispers", function()
 			for _, raid in ipairs({ false, true }) do
 				local clients = H.group({
 					{ name = "Me", class = "HUNTER", friends = { "Max" } },
@@ -222,7 +255,7 @@ describe("LooserPiml friends", function()
 			me:Fire("FRIENDLIST_UPDATE")
 			ns.Slash:Dispatch("selftest")                    -- real transport test
 			me:Advance(40)
-			assert.is_true(me:ChatContains("someone in your group is not on your LooserPiml friends list"))
+			assert.is_true(me:ChatContains("no LooserPiml friend is connected right now"))
 			assert.are.same({}, sentMessages(me))
 			assert.are.equal(0, receivedFrom(stranger, me))
 			assert.are.equal(0, #ns.Comm.queue)
@@ -327,8 +360,9 @@ describe("LooserPiml friends", function()
 			for _, m in ipairs(sentMessages(me)) do
 				assert.are.equal("Lena", m.target)
 			end
-			assert.is_true((types(sentMessages(me)).STATS or 0) >= 1) -- stats to a friend outside the group
-			assert.is_nil(types(sentMessages(me)).TICK) -- the ticker stays within the group
+			assert.is_true((types(sentMessages(me)).STATS or 0) >= 1) -- not grouped: stats ...
+			assert.is_true((types(sentMessages(me)).TICK or 0) >= 1)  -- ... and ticker events
+			assert.matches("Me died", H.lastRendered(lena))
 
 			-- Lena logs off: her handshake is forgotten, nothing more goes to her
 			me.friendList.Lena.connected = false
@@ -347,19 +381,33 @@ describe("LooserPiml friends", function()
 			assert.is_true(me.ns.Friends:IsConfirmed("Lena"))
 		end)
 
-		it("never uses the group channel while a member can't be identified", function()
-			local mock, ns = H.client({
-				group = { { name = "Max", class = "WARRIOR" }, { name = H.Mock.Secret(), class = "MAGE" } },
-				confirmed = { "Max" },
-			})
-			assert.are.equal(1, ns.Roster.unknownMembers)
-			die(mock)
-			mock:Advance(2)
-			local mine = sentMessages(mock)
-			assert.is_true(#mine > 0)
-			for _, m in ipairs(mine) do
-				assert.are.equal("WHISPER", m.chatType)
-				assert.are.equal("Max", m.target)
+		it("two connected friends who are NOT grouped exchange stats and ticker events", function()
+			local clients = H.friends({ { name = "Me", class = "HUNTER" }, { name = "Max", class = "WARRIOR" } })
+			local me, max = clients[1], clients[2]
+			assert.are.equal(0, #me.group)
+			assert.is_true(me.ns.Friends:IsConnected("Max"))
+			assert.is_true(max.ns.Friends:IsConnected("Me"))
+			die(max)
+			max:Fire("PLAYER_LEVEL_UP", 11)
+			me:Advance(40)
+			local plain = H.renderedPlain(me)
+			assert.are.equal("Max died.", plain[1])
+			assert.are.equal("Max reached level 11!", plain[2])
+			local stats = me.ns:GetModule("Stats")
+			local maxEntry
+			for _, p in ipairs(stats:GetParticipants("tonight")) do
+				if p.name == "Max-TestRealm" then
+					maxEntry = p
+				end
+			end
+			assert.is_table(maxEntry)
+			assert.is_true(maxEntry.online)
+			assert.are.equal(1, stats.Model.Get(maxEntry.agg, "deaths"))
+			assert.are.equal(1, stats:CountOnlineFriends())
+			for _, c in ipairs(clients) do
+				for _, call in ipairs(c.sent) do
+					assert.are.equal("WHISPER", call.chatType)
+				end
 			end
 		end)
 
