@@ -478,7 +478,18 @@ function Friends:MaybeHint()
 	ns.Log:Print(L.FRIENDS_HINT_EMPTY)
 end
 
+-- An earlier build could list the own character (offered under "Add from
+-- group"); such an entry would only ever whisper ourselves.
+function Friends:RemoveSelf()
+	for full in pairs(self:GetDB()) do
+		if ns.Roster:IsPlayer(full) then
+			self:GetDB()[full] = nil
+		end
+	end
+end
+
 function Friends:OnEnable()
+	self:RemoveSelf()
 	-- Group members' connection state is one more source of "online".
 	ns.Events:Register(self, "LP_ROSTER_UPDATED", "UpdateOnline")
 	-- Fires when the character friends list changes, including friends

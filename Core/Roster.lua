@@ -83,7 +83,21 @@ local function readUnit(unit)
 	if not name or ns.IsSecret(name) or ns.IsSecret(realm) or name == UNKNOWNOBJECT then
 		return nil
 	end
-	local full = (realm and realm ~= "") and (name .. "-" .. realm) or Roster:Normalize(name)
+	-- Realm names in "Name-Realm" have no spaces or hyphens. UnitName may
+	-- return a realm differently formatted than GetNormalizedRealmName, which
+	-- made the own character look like a stranger ("Add from group" offered
+	-- it). The player itself is always keyed like GetPlayerName().
+	local full
+	if unit == "player" then
+		full = Roster:GetPlayerName()
+	elseif realm and realm ~= "" then
+		full = name .. "-" .. realm:gsub("[%s%-]", "")
+	else
+		full = Roster:Normalize(name)
+	end
+	if not full then
+		return nil
+	end
 	local _, class = UnitClass(unit)
 	if ns.IsSecret(class) then
 		class = nil

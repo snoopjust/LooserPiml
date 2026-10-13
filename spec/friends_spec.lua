@@ -115,6 +115,21 @@ describe("LooserPiml friends", function()
 			ns.TestMode:Disable()
 		end)
 
+		it("never offers the own character, even if UnitName reports the realm oddly", function()
+			local mock, ns = H.client()
+			mock.G.UnitName = function(unit)
+				if unit == "player" then
+					return "Me", "Test Realm"
+				end
+			end
+			ns.Roster:Scan()
+			assert.are.same({}, ns.Friends:GetGroupCandidates())
+			local db = ns.DB:Get("friends")
+			db["Me-TestRealm"] = { added = 0 }
+			ns.Friends:RemoveSelf()
+			assert.is_nil(db["Me-TestRealm"])
+		end)
+
 		it("can add from the WoW friends list (online first) and explains why both lists matter", function()
 			local mock, ns = H.client()
 			mock.friendList.Zed = { connected = false, className = "Rogue" }
