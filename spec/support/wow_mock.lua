@@ -263,6 +263,21 @@ function Mock.new(opts)
 	self.itemQuality = {}
 	self.lootSource = {}
 	self.lootSlots = { { isQuestItem = false } } -- GetLootSlotInfo per slot
+	-- Containers: bag index -> array of { id, count } (nil = empty slot).
+	-- Bank containers (-2, 6..14) read as empty unless bankOpen, like the
+	-- real client.
+	self.containers = { [0] = {} }
+	self.bankOpen = false
+	-- Item data: id -> { name, quality, classID, typeName, icon, cached }.
+	-- Uncached items have no name until Item:ContinueOnItemLoad loads them.
+	self.items = {
+		[2589] = { name = "Linen Cloth", quality = 1, classID = 7, typeName = "Trade Goods", cached = true },
+		[2318] = { name = "Light Leather", quality = 1, classID = 7, typeName = "Trade Goods", cached = true },
+		[2319] = { name = "Medium Leather", quality = 1, classID = 7, typeName = "Trade Goods", cached = true },
+		[118] = { name = "Minor Healing Potion", quality = 1, classID = 0, typeName = "Consumable", cached = true },
+		[2140] = { name = "Carving Knife", quality = 3, classID = 2, typeName = "Weapon", cached = true },
+		[4306] = { name = "Silk Cloth", quality = 1, classID = 7, typeName = "Trade Goods", cached = false },
+	}
 	self.fishing = false
 	self.professions = { indices = { 1, 2 }, names = { "Mining", "Herbalism" } }
 	self.faction = "Alliance"
@@ -417,6 +432,23 @@ function Mock:LeaveGroup()
 	self.group = {}
 	self.raid = false
 	self:Fire("GROUP_ROSTER_UPDATE")
+end
+
+-- Puts items into a container and fires the bag events like the client.
+function Mock:SetBag(bag, slots)
+	self.containers[bag] = slots
+	self:Fire("BAG_UPDATE", bag)
+	self:Fire("BAG_UPDATE_DELAYED")
+end
+
+function Mock:OpenBank()
+	self.bankOpen = true
+	self:Fire("BANKFRAME_OPENED")
+end
+
+function Mock:CloseBank()
+	self:Fire("BANKFRAME_CLOSED")
+	self.bankOpen = false
 end
 
 function Mock:StartEncounter(name)
@@ -726,6 +758,11 @@ function Mock:BuildEnv()
 		SendAddonMessageResult = SEND_RESULT,
 		AddOnRestrictionType = { Combat = 0, Encounter = 1, ChallengeMode = 2, PvPMatch = 3, Map = 4, Chat = 5 },
 		AddOnRestrictionState = { Inactive = 0, Activating = 1, Active = 2 },
+		BagIndex = {
+			Accountbanktab = -3, Characterbanktab = -2, Keyring = -1, Backpack = 0, Bag_1 = 1, Bag_2 = 2, Bag_3 = 3, Bag_4 = 4,
+			ReagentBag = 5, CharacterBankTab_1 = 6, CharacterBankTab_2 = 7, CharacterBankTab_3 = 8, CharacterBankTab_4 = 9,
+			CharacterBankTab_5 = 10, CharacterBankTab_6 = 11, CharacterBankTab_7 = 12, CharacterBankTab_8 = 13, CharacterBankTab_9 = 14,
+		},
 	}
 
 	-- Timers
@@ -948,9 +985,75 @@ function Mock:BuildEnv()
 	G.SKILL_RANK_UP = "Your skill in %s has increased to %d."
 	G.DUEL_WINNER_KNOCKOUT = "%1$s has defeated %2$s in a duel"
 	G.DUEL_WINNER_RETREAT = "%2$s has fled from %1$s in a duel"
+	local function itemOf(id)
+		local item = mock.items[tonumber(id) or -1]
+		return item
+	end
 	G.C_Item = {
 		GetItemQualityByID = function(link)
+			if type(link) == "number" then
+				local item = itemOf(link)
+				return item and item.cached and item.quality or nil
+			end
 			return mock.itemQuality[link]
+		end,
+		GetItemNameByID = function(id)
+			local item = itemOf(id)
+			return item and item.cached and item.name or nil
+		end,
+		-- itemID, itemType, itemSubType, itemEquipLoc, icon, classID, subclassID
+		GetItemInfoInstant = function(id)
+			local item = itemOf(id)
+			if not item then
+				return nil
+			end
+			return id, item.typeName, "", "", 134400 + id, item.classID, 0
+		end,
+	}
+	mock.itemLoads = 0
+	G.Item = {
+		CreateFromItemID = function(_, id)
+			local object = { id = id }
+			function object:IsItemEmpty()
+				return itemOf(id) == nil
+			end
+			function object:ContinueOnItemLoad(fn)
+				mock.itemLoads = mock.itemLoads + 1
+				mock:AddTimer(0.2, function()
+					local item = itemOf(id)
+					if item then
+						item.cached = true
+					end
+					fn()
+				end)
+			end
+			return object
+		end,
+	}
+	local bankIds = { [-2] = true }
+	for i = 6, 14 do
+		bankIds[i] = true
+	end
+	G.C_Container = {
+		GetContainerNumSlots = function(bag)
+			if bankIds[bag] and not mock.bankOpen then
+				return 0
+			end
+			local slots = mock.containers[bag]
+			return slots and math.max(#slots, slots.size or 0) or 0
+		end,
+		GetContainerItemInfo = function(bag, slot)
+			if bankIds[bag] and not mock.bankOpen then
+				return nil
+			end
+			local s = (mock.containers[bag] or {})[slot]
+			if not s then
+				return nil
+			end
+			if s.secret then
+				return Mock.Secret()
+			end
+			return { itemID = s.id, stackCount = s.count, iconFileID = 1, isLocked = false, hyperlink = "|Hitem:" .. s.id .. "|h", itemName = "", isBound = false }
 		end,
 	}
 	G.GetLootSourceInfo = function(slot)

@@ -171,7 +171,7 @@ describe("Stats sync", function()
 		local winner = stats(me).Leaderboard.Award(stats(me):GetParticipants("week"), "goldHoarder")
 		assert.are.equal("Max-TestRealm", winner.name)
 
-		max.ns.Options:Set("stats.shareGold", false)
+		max.ns.Options:Set("inventory.shareGold", false)
 		me:Advance(40)
 		assert.is_nil(maxEntry("tonight").gold)
 		assert.is_not_nil(maxEntry("tonight")) -- still on the leaderboard for everything else
@@ -180,7 +180,7 @@ describe("Stats sync", function()
 			assert.are_not.equal("Max-TestRealm", row.name)
 		end
 		-- my own gold is left out too when I don't share it
-		me.ns.Options:Set("stats.shareGold", false)
+		me.ns.Options:Set("inventory.shareGold", false)
 		assert.is_nil(stats(me):GetParticipants("tonight")[1].gold)
 		assert.are.equal(0, #stats(me).Leaderboard.Ranking(stats(me):GetParticipants("tonight"), "gold"))
 	end)

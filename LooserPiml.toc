@@ -51,3 +51,5 @@ Modules\Stats\PvP.lua
 Modules\Stats\Sync.lua
 Modules\Stats\Leaderboard.lua
 Modules\Stats\LeaderboardTab.lua
+Modules\Inventory\Inventory.lua
+Modules\Inventory\Items.lua

@@ -29,6 +29,11 @@ DB.defaults = {
 	window = {},                -- main window position
 	minimap = { hide = false }, -- LibDBIcon settings (hide, minimapPos)
 	friends = {},               -- the LooserPiml friends list (Core/Friends.lua)
+	-- What I share with my LooserPiml friends. Shared by Stats (gold in the
+	-- leaderboard) and Inventory (gold bar, bags, bank), so it lives here
+	-- instead of in one module's storage. The Inventory settings section
+	-- shows the switches.
+	share = { gold = true, inventory = true },
 }
 
 -- DB.migrations[n] upgrades a database from schema n-1 to n. Add a new entry
@@ -124,6 +129,17 @@ function DB:GetModuleDB(name, defaults)
 	local modules = self.data.modules
 	modules[name] = copyDefaults(defaults or {}, modules[name] or {})
 	return modules[name]
+end
+
+-- Sharing switches ("gold", "inventory"); unknown kinds count as off.
+function DB:IsShared(kind)
+	local share = self.data and self.data.share
+	return type(share) == "table" and share[kind] ~= false and share[kind] ~= nil
+end
+
+function DB:SetShared(kind, on)
+	self.data.share[kind] = on and true or false
+	ns.Events:Fire("LP_SHARING_CHANGED", kind, on and true or false)
 end
 
 function DB:IsModuleEnabled(name, default)

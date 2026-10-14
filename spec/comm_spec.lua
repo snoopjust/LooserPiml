@@ -140,6 +140,7 @@ describe("Comm", function()
 		it("holds while InChatMessagingLockdown() is true and flushes when the restriction lifts", function()
 			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, confirmed = { "Max" } })
 			ns:GetModule("Stats").db.share = false -- only this test's own traffic
+			ns:SetModuleEnabled("Inventory", false)
 			local before = #mock.sent
 			mock.lockdown = true
 			assert.are.equal("queued", ns.Comm:Send("TEST", {}))
@@ -170,6 +171,7 @@ describe("Comm", function()
 		it("gives up after MAX_ATTEMPTS refused sends", function()
 			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } }, confirmed = { "Max" } })
 			ns:GetModule("Stats").db.share = false -- only this test's own traffic
+			ns:SetModuleEnabled("Inventory", false)
 			mock.refuseSends = true
 			ns.Comm:Send("TEST", {})
 			mock:Advance(ns.Comm.RETRY_INTERVAL * (ns.Comm.MAX_ATTEMPTS + 2))
@@ -181,6 +183,7 @@ describe("Comm", function()
 		it("drops held messages that became stale", function()
 			local mock, ns = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
 			ns:GetModule("Stats").db.share = false -- only this test's own traffic
+			ns:SetModuleEnabled("Inventory", false)
 			local before = #mock.sent
 			mock.lockdown = true
 			ns.Comm:Send("TEST", {})

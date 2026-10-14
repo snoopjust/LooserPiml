@@ -28,55 +28,9 @@ Stats.GATHER_SPELLS = {
 -- Seconds between the end of a gathering cast and the loot window.
 Stats.GATHER_WINDOW = 5
 
--- Own-loot GlobalStrings, "...MULTIPLE" first: the single form would also
--- match "[Item]x2." and swallow the count.
-Stats.LOOT_FORMATS = {
-	{ name = "LOOT_ITEM_SELF_MULTIPLE", kind = "loot", multiple = true },
-	{ name = "LOOT_ITEM_SELF", kind = "loot" },
-	{ name = "LOOT_ITEM_PUSHED_SELF_MULTIPLE", kind = "loot", multiple = true },
-	{ name = "LOOT_ITEM_PUSHED_SELF", kind = "loot" },
-	{ name = "LOOT_ITEM_CREATED_SELF_MULTIPLE", kind = "created", multiple = true },
-	{ name = "LOOT_ITEM_CREATED_SELF", kind = "created" },
-}
-
--- Classic item link colors, used only if the item API can't tell yet.
-local LINK_COLORS = {
-	ff9d9d9d = 0, ffffffff = 1, ff1eff00 = 2, ff0070dd = 3, ffa335ee = 4, ffff8000 = 5, ffe6cc80 = 6,
-}
-
--- Quality of an item link: the item API first (nil while the item isn't
--- cached yet), then the quality marker or color embedded in the link.
-function Stats.ItemQuality(link)
-	if type(link) ~= "string" then
-		return nil
-	end
-	local getQuality = C_Item and C_Item.GetItemQualityByID
-	if getQuality then
-		local quality = getQuality(link)
-		if type(quality) == "number" and not ns.IsSecret(quality) then
-			return quality
-		end
-	end
-	local marker = link:match("|cnIQ(%d+):")
-	if marker then
-		return tonumber(marker)
-	end
-	local color = link:match("|c(%x%x%x%x%x%x%x%x)")
-	return color and LINK_COLORS[color:lower()] or nil
-end
-
--- Parses an own loot/create message. Returns kind, link, count or nil.
-function Stats.ParseLootMessage(text)
-	for _, format in ipairs(Stats.LOOT_FORMATS) do
-		local fmt = _G[format.name]
-		local args = fmt and Util.MatchFormat(text, fmt)
-		if args then
-			local count = format.multiple and Util.ToNumber(args[2]) or 1
-			return format.kind, args[1], count
-		end
-	end
-	return nil
-end
+-- Parsing lives in Core/Util (the Inventory module needs it too).
+Stats.ItemQuality = Util.ItemQuality
+Stats.ParseLootMessage = Util.ParseOwnLoot
 
 function Stats:OnChatMsgLoot(_, text)
 	local kind, link, count = Stats.ParseLootMessage(text)

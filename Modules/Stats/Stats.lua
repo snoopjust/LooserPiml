@@ -25,7 +25,6 @@ Stats.MAX_TICK_GAP = 300    -- seconds: longer gaps (client frozen?) are not cou
 Stats.defaults = {
 	collect = true, -- setting: record stats at all
 	share = true,   -- setting: send my aggregates to my LooserPiml friends
-	shareGold = true, -- setting: include my current gold (Gold Hoarder, "Gold" ranking)
 	chars = {},
 	friendStats = {}, -- fullName -> latest aggregates received from that friend (Sync.lua)
 }
@@ -55,17 +54,6 @@ function Stats:RegisterOptions()
 		end,
 		set = function(value)
 			self.db.share = value and true or false
-		end,
-	})
-	Options:Add("stats", {
-		type = "checkbox", key = "stats.shareGold", label = L.OPT_STATS_SHARE_GOLD, tooltip = L.OPT_STATS_SHARE_GOLD_TIP, default = true,
-		get = function()
-			return self.db.shareGold ~= false
-		end,
-		set = function(value)
-			self.db.shareGold = value and true or false
-			-- Friends learn it with the next stats message (with or without gold).
-			self:Changed()
 		end,
 	})
 	Options:Add("stats", {
@@ -101,6 +89,13 @@ function Stats:OnEnable()
 		self:Tick() -- SavedVariables are written right after this
 	end)
 	self:EnableCollectors()
+	-- "Share my gold" (Inventory settings): friends learn it with the next
+	-- stats message, with or without gold.
+	ns.Events:Register(self, "LP_SHARING_CHANGED", function(_, _, kind)
+		if kind == "gold" then
+			self:Changed()
+		end
+	end)
 end
 
 function Stats:OnDisable()
@@ -201,7 +196,7 @@ end
 -- message; someone who doesn't share takes no part in the gold comparison,
 -- not even on their own screen.
 function Stats:GetSharedGold()
-	if self.db.shareGold == false or not GetMoney then
+	if not ns.DB:IsShared("gold") or not GetMoney then
 		return nil
 	end
 	local money = GetMoney()
