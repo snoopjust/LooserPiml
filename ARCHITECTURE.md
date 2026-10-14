@@ -14,7 +14,9 @@ friend, wherever they are; their clients check it and show it (banner, chat
 line only, or not at all, as each friend prefers). The **Stats** module records much more of
 the own character's life (gold, loot, quests, duels, ...) in a local log,
 condenses it into totals and shares only those totals with friends, which
-feeds the **Leaderboard** window. LooserPiml talks **only to players on the
+feeds the **Leaderboard**, **Profiles** and **Tonight** tabs. The
+**Inventory** module shares bags, bank and gold on hand, plus everyone's
+own **wishlist**, for the Friends' inventory tab. LooserPiml talks **only to players on the
 explicit, mutual LooserPiml friends list** (see "Communication: only with
 LooserPiml friends"); nobody else receives anything, not even hidden addon
 messages. Nobody ever inspects other players, so no secret unit data is
@@ -27,13 +29,15 @@ Options › AddOns › LooserPiml.
 ```mermaid
 flowchart TB
     Ticker["Ticker module<br/>Ticker.lua · Stats.lua · Display.lua"]
-    Stats["Stats module<br/>log · collectors · model · sync · leaderboard tab"]
+    Stats["Stats module<br/>log · collectors · model · sync<br/>leaderboard · profiles · tonight tabs"]
+    Inventory["Inventory module<br/>bags · bank · gold · wishlists<br/>Friends' inventory tab"]
     Future["Inventory · Professions · Bets<br/>(planned)"]
-    Core["Core services<br/>Events · DB · Log · Roster · Friends · PlayerEvents<br/>Comm · Version · TestMode · Slash · Options · Window · FriendsPanel"]
+    Core["Core services<br/>Events · DB · Log · Roster · Friends · Timeline · PlayerEvents<br/>Comm · Version · TestMode · Slash · Options · Window · FriendsPanel"]
     Libs["AceComm-3.0 + ChatThrottleLib · AceSerializer-3.0 · LibDeflate<br/>LibDataBroker · LibDBIcon"]
     API[("WoW client API<br/>game events · C_ChatInfo.SendAddonMessage · CHAT_MSG_ADDON · Settings")]
     Ticker --> Core
     Stats --> Core
+    Inventory --> Core
     Future -.-> Core
     Core -->|"Comm only"| Libs
     Core --> API
@@ -54,12 +58,13 @@ module removable.
 |---|---|---|
 | `LooserPiml.toc` | Metadata (Interface 16001, version placeholder, SavedVariables) and the **load order** | — |
 | `Core/Init.lua` | Creates the shared namespace `ns`, the core-service and module registries, the lifecycle (ADDON_LOADED → `ns:Initialize`, PLAYER_LOGIN → `ns:Enable`), `ns.SafeCall`, `ns.IsSecret` | `RegisterCore`, `NewModule`, `EnableModule`/`DisableModule`, boot frame |
-| `Core/Util.lua` | Pure helpers: localized GlobalStrings format → pattern matching (positional args), money/duration formatting, table copy | `MatchFormat`, `FormatMoney` |
+| `Core/Util.lua` | Pure helpers: localized GlobalStrings format → pattern matching (positional args), own loot message parsing and item quality, money/duration/"ago" formatting, gaming day start, table copy | `MatchFormat`, `ParseOwnLoot`, `FormatMoney`, `FormatAgo`, `GamingDayStart` |
 | `Locales/enUS.lua` | Every user-visible string in `ns.L`, incl. the Ticker text variants with `{name}`-style tokens | `L.TICKER` |
 | `Core/Events.lua` | The single event frame; dispatches game events and internal `LP_*` messages to registered owners; tracks boss-encounter state | `Register`, `dispatch`, `IsEncounterActive`, `SetSimulatedEncounter` |
 | `Core/DB.lua` | `LooserPimlDB`: defaults, `schemaVersion`, ordered migrations, per-module storage | `Migrate`, `GetModuleDB` |
 | `Core/Log.lua` | Ring buffer + chat output by level; records ADDON_ACTION_BLOCKED/FORBIDDEN, LUA_WARNING, our Lua errors | `IsVerbose`, `CaptureError`, `InstallErrorHook` |
 | `Core/Roster.lua` | Group members as `Name-Realm` with class and connection state (context only: online info, "Add from group", time grouped), fake friends for test mode | `Scan`, `Normalize`, `ColorName` |
+| `Core/Timeline.lua` | Own and friends' ticker events of the last 7 days (fed by the Ticker), for the Tonight tab and "looted tonight" | `Add`, `Between`, `Prune` |
 | `Core/Friends.lua` | The LooserPiml friends list (SavedVariables), name parsing, WoW friends list candidates, online state, handshake state ("confirmed"), and `Route()`: which connected friends get a message of a given scope (one whisper each). The enforcement point of the communication rule | `Add`, `Remove`, `IsListed`, `OnHandshake`, `UpdateOnline`, `IsConnected`, `Allowed`, `Route` |
 | `Core/PlayerEvents.lua` | Detects the own player's death (incl. drowned), level-up and instance enter/leave (with corpse-run rule) and fires `LP_PLAYER_DEAD`, `LP_PLAYER_LEVEL_UP`, `LP_INSTANCE_ENTER/LEAVE` for any module | `PLAYER_DEAD`, `WasDrowning`, `PLAYER_ENTERING_WORLD`, `GetCurrentInstance` |
 | `Core/Comm.lua` | Encoding, sending (one WHISPER per recipient from `Friends:Route` at transmit time, hold queue with optional replace key, retries, test-mode messages never go out), receiving (drops senders who aren't listed before decoding, filters, dispatch to handlers), test loopback, self-test ping; fires `LP_COMM_SENT` per real transmission | `Send`, `IsRestricted`, `Hold`, `Flush`, `Transmit`, `Receive` |
@@ -81,6 +86,12 @@ module removable.
 | `Modules/Stats/Sync.lua` | Sends own aggregates to connected friends (when a handshake arrives, after changes; ≤ 1 per 30 s; off with "share my stats"), caches friends' aggregates with last-seen (`friendStats`), staleness of tonight/week, participants for the leaderboard (friends who answered a handshake), sample friends in test mode | `RequestBroadcast`, `OnStatsMessage`, `GetParticipants`, `FillSampleFriends` |
 | `Modules/Stats/Leaderboard.lua` | Pure data provider: Hall of Fame awards (Death King, Fish Food, Gold Hoarder by current gold, Speedrunner; earlier achiever wins ties) and ranking rows with bar fractions. "Snapshot" metrics (gold) come from the participant, not the period aggregate, and leave out whoever doesn't share them | `Value`, `Award`, `HallOfFame`, `Ranking`, `Format` |
 | `Modules/Stats/LeaderboardTab.lua` | Leaderboard tab (period selector, Hall of Fame cards, metric selector, ranking rows with bars) and the stats lines of the minimap tooltip; frame code only | `Create`, `Refresh`, `FillTooltip` |
+| `Modules/Stats/Profiles.lua` | Profile extras sent with STATS (professions, favourite zone, evenings played), the pure profile → sections mapping ("—" for missing data) and the Profiles tab | `GetProfiles`, `Profiles.Sections`, `CleanProfileExtras` |
+| `Modules/Stats/Tonight.lua` | Tonight tab (recap card, KPI tiles, timeline) and the one-time "Last evening" popup | `Tonight.Recap`, `Tonight.Totals`, `CheckEveningRecap`, `ShowEveningRecap` |
+| `Modules/Inventory/Inventory.lua` | Inventory module: own bags (debounced), bank (while open), gold; full snapshot + delta sync to connected friends; friends' cache; sharing settings | `ScanBags`, `ScanBank`, `SendFull`, `RequestDelta`, `OnInventoryMessage`, `GetHolders` |
+| `Modules/Inventory/Items.lua` | Item info with async loading (`Item:ContinueOnItemLoad`) and the pure search/filter/sort provider for the tab | `Info`, `Load`, `BuildRows`, `TotalHeld` |
+| `Modules/Inventory/InventoryTab.lua` | The Friends' inventory tab: gold bar, search, filters, item rows with holder chips, "Last updated" column | `Create`, `Refresh`, `UpdatedText` |
+| `Modules/Inventory/Wishlist.lua` | Own wishlist (edit), friends' wishlists (read-only), wishlist loot detection (→ `LP_WISHLIST_LOOT` → Ticker), the Wishlists view | `AddWish`, `RemoveWish`, `OnWishMessage`, `GetWishEntries`, `OnChatMsgLoot` |
 | `Libs/…` | LibStub, CallbackHandler, AceComm (+ ChatThrottleLib), AceSerializer, LibDeflate, LibDataBroker, LibDBIcon (minimap button). Fetched, not committed | — |
 
 ### Development only (not in the release zip)
@@ -111,6 +122,9 @@ login.
 | 8–19 | `Core\Events` → `DB` → `Log` → `Roster` → `Friends` → `PlayerEvents` → `Comm` → `Version` → `TestMode` → `Slash` → `Options` → `Window` → `FriendsPanel` | Registration order = initialization order. `DB` must initialize before `Log` reads the debug flag and before any module asks for storage. `Friends` needs `Roster`; `FriendsPanel` uses `Window`'s widget helpers at load time |
 | 16 | `Modules\Ticker\Ticker.lua` | Creates the module with `ns:NewModule("Ticker")` |
 | 17–18 | `Stats.lua`, `Display.lua` | Attach to that module (`ns:GetModule("Ticker")`), so they must come after it |
+| … | `Modules\Stats\Stats.lua` → `Model` … `LeaderboardTab` → `Profiles` → `Tonight` | The same pattern: the module file first, the files that attach to it after |
+| … | `Modules\Inventory\Inventory.lua` → `Items` → `InventoryTab` → `Wishlist` | `Wishlist` adds its view to the tab table created by `InventoryTab` |
+| | `Core\Timeline.lua` (after `Friends`) | Core service: the Ticker adds to it, Stats and Inventory read it |
 
 Then the lifecycle:
 
@@ -188,6 +202,84 @@ The same flow runs the other way round too: my own aggregates join
    there first) and rankings from the participants list. `LeaderboardTab`
    only draws them.
 
+## Friends' inventory: from a bag slot to a friend's screen
+
+```mermaid
+flowchart LR
+    subgraph Mine["My client"]
+        BAGS["BAG_UPDATE_DELAYED<br/>(debounced 2 s)"]
+        BANK["BANKFRAME_OPENED,<br/>PLAYERBANKSLOTS_CHANGED<br/>(only while open)"]
+        MONEY["PLAYER_MONEY"]
+        SCAN["ReadContainers<br/>itemID → count"]
+        CHAR[("own snapshot<br/>bags · bank · bankAt<br/>SavedVariables")]
+        STATE["CurrentState<br/>(what I share:<br/>share.inventory / share.gold)"]
+        FULL["INV full<br/>after a handshake,<br/>on INVREQ, after a<br/>sharing switch"]
+        DELTA["INV delta<br/>changed counts only,<br/>max 1 per 30 s"]
+        WISH["WISH<br/>my whole wishlist"]
+    end
+    subgraph Friend["Friend's client"]
+        APPLY["OnInventoryMessage<br/>full: replace<br/>delta: only if session + seq fit,<br/>else INVREQ (max 1/min)"]
+        CACHE[("cache per friend<br/>bags · bank · bankAt · gold<br/>wishlist · seen")]
+        ROWS["Items.BuildRows<br/>search · filter · sort (pure)"]
+        TAB["Friends' inventory tab<br/>gold bar · rows · last updated<br/>wishlists"]
+    end
+    BAGS --> SCAN
+    BANK --> SCAN
+    SCAN --> CHAR --> STATE
+    MONEY --> STATE
+    STATE --> FULL
+    STATE --> DELTA
+    FULL -->|"whisper per<br/>connected friend"| APPLY
+    DELTA -->|"whisper per<br/>connected friend"| APPLY
+    WISH -->|"whisper per<br/>connected friend"| CACHE
+    APPLY --> CACHE --> ROWS --> TAB
+```
+
+1. **Collect** (own character, never equipped items): bags are rescanned
+   2 s after the last `BAG_UPDATE_DELAYED`; the bank can only be read
+   while its window is open, so it is a snapshot with a time ("bank 3
+   days ago"). Containers: backpack, bags 1-4, reagent bag; bank
+   `Characterbanktab` plus `CharacterBankTab_1-9` (Forever's
+   `Enum.BagIndex`). The account bank is left out (it isn't this
+   character's).
+2. **Send**: a full snapshot to a friend whose handshake just arrived (or
+   who asks with INVREQ), then deltas with absolute counts (0 = gone) at
+   most every 30 s. Each message carries the session id and a sequence
+   number; a delta is applied only on top of the state it was built from.
+3. **Not shared = not sent**: switching off "Share my bags and bank" or
+   "Share my gold" sends everyone a new full snapshot without that part,
+   and receivers drop what they had. The switches live in
+   `LooserPimlDB.share`, because Stats (Gold Hoarder) uses gold too.
+4. **Size**: a full snapshot with 300 distinct items is about 0.9 KB on
+   the wire (4 chunks); deltas are usually one chunk. With BULK priority
+   and ChatThrottleLib this is a few seconds of background traffic per
+   friend after login, and then almost nothing.
+5. **Wishlists**: each player edits only their own; the whole list goes
+   out 5 s after a change and after a handshake, and is stored under the
+   sender only. Looting a wished-for item fires `LP_WISHLIST_LOOT`; the
+   Ticker turns it into a "wishloot" event (banner "Pew looted Medium
+   Leather ×3 · On Justice Beaver's wishlist · 7 still needed").
+6. **Show**: uncached item names load asynchronously
+   (`Item:ContinueOnItemLoad` → `LP_ITEM_LOADED` → the window redraws).
+   There is no button to message a friend: LooserPiml never sends
+   whispers or chat on the player's behalf.
+
+## Tonight, Profiles and the timeline
+
+- **Timeline** (`Core/Timeline`): the Ticker adds every own event and every
+  friend's ticker event (not simulated ones) with its display text; kept
+  7 days in SavedVariables. The Tonight tab shows the entries since 06:00,
+  newest at the bottom; the wishlist view counts "looted tonight" from it.
+- **Tonight tab**: recap card (awards with data), KPI tiles summed over me
+  and my friends' "tonight" aggregates, timeline.
+- **Evening recap**: `Stats.previousActiveDay` is read before anything is
+  recorded at login; if it is before today and wasn't shown yet, a local
+  popup shows that day's awards and totals (my aggregate of that day plus
+  friends' cached "tonight" of that day). Once per evening.
+- **Profiles tab**: all-time aggregates plus extras from the STATS message
+  (`prof`, `fav`, `eve`); `Profiles.Sections` maps them to labels and
+  values and shows "—" where nothing is known.
+
 ## Settings and window
 
 `Core/Options` is a registry. Ticker, Stats, TestMode and Window each add
@@ -229,7 +321,7 @@ Three pieces enforce it:
    | Scope | Used by | Goes to |
    |---|---|---|
    | `handshake` | HELLO | listed friends who are online |
-   | `friends` | TICK, STATS, SELFTEST(_ECHO) | connected friends: listed, answered the handshake this session, online |
+   | `friends` | TICK, STATS, INV, INVREQ, WISH, SELFTEST(_ECHO) | connected friends: listed, answered the handshake this session, online |
 
 2. **Receiving** (`Comm:Receive`). A message from a sender who isn't on the
    own list is dropped before it is even decoded. That is what makes the
