@@ -1,13 +1,48 @@
 # Changelog
 
-## Unreleased
+## v0.2.0-beta.2 (2026-10-14, pre-release)
 
-- **Gold Hoarder** now goes to the friend with the most gold on hand right
-  now (not gold looted). The ranking metric "Gold looted" became **Gold**:
-  current gold, highest first, marked "right now"; the period selector
-  doesn't apply to it. New setting **Share my gold** (Settings › Stats, on
-  by default): friends who turn it off are left out of both. Gold by
-  source is still recorded in the background.
+Second beta, for the test with a friend before the Forever beta ends.
+
+### Added
+
+- **Friends' inventory** (new tab "Inventory"): what your LooserPiml
+  friends carry in their bags and keep in their bank, plus their gold on
+  hand. Gold bar with a chip per friend and a total, search by item name
+  as you type, filters (All / Materials / Consumables / Gear, Bags + bank /
+  Bags / Bank), one row per item with who has how many (and whether it's
+  in the bank), and when each friend's bags and bank were last updated.
+  Banks update when their owner opens the bank. Equipped items are never
+  shared.
+- **Wishlists**: add what you're looking for (type the name or shift-click
+  the item, plus a quantity). Everyone adds only their own wishes; all
+  friends see them, with how many your friends already have. When a friend
+  loots something on a wishlist you get a banner: "Pew looted Medium
+  Leather ×3 · On Justice Beaver's wishlist · 7 still needed".
+- **Profiles** (new tab): one player in depth: progress, deaths, loot and
+  gold, professions, travel, PvP and social stats; "—" where there's no
+  data yet.
+- **Tonight** (new tab): tonight's awards, totals (session, deaths,
+  level-ups, gold looted, duels) and a timeline of everything that
+  happened to you and your friends since 06:00. On the first login of a
+  new day a small window shows last evening's recap (can be turned off).
+- Settings › Inventory: "Share my bags and bank with my LooserPiml
+  friends", "Share my gold with my LooserPiml friends" (moved here),
+  "Banner when a wishlist item is looted". Settings › Stats: "Show
+  evening recap".
+
+### Changed
+
+- **Gold Hoarder** goes to the friend with the most gold on hand right now
+  (not gold looted). The ranking metric "Gold looted" became **Gold**:
+  current gold, highest first, shown as "71g 60s right now"; the period
+  selector doesn't apply to it. Friends who don't share gold are left
+  out. Gold by source is still recorded in the background.
+- Played time and time grouped are counted quietly instead of triggering
+  a stats message every minute.
+
+### Fixed
+
 - The own character is never offered or listed as a LooserPiml friend.
 
 ## v0.2.0-beta.1 (2026-10-12, pre-release)

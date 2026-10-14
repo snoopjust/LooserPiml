@@ -55,7 +55,11 @@ Covered:
 | Sync: exchange after the handshake and on changes, ≤ 1 broadcast per 30 s, share off = nothing sent, staleness of tonight/week, cache survives reload (offline friends), hostile payloads, boss-fight queue with newest snapshot only, message size, sample friends (never on the real list) | `stats_sync_spec.lua` |
 | Awards incl. ties and empty data, ranking rows and bar fractions, formatting, ranking with real synced data | `leaderboard_spec.lua` |
 | Option defaults, v0.1.0 → v0.2.0 migration, ticker filters, own events, boss recap, banner time/size/move/reset, Blizzard panel build with live proxy values, the friends dropdown, reset confirmation, testing buttons | `options_spec.lua` |
-| Window open/ESC/toggle/position, tabs (Leaderboard, Friends), leaderboard contents and selectors, minimap button clicks, tooltip lines, minimap hide/show, Addon Compartment callbacks, footer version status | `window_spec.lua` |
+| Inventory: bag counts (debounced), bank only while open (snapshot + time), unreadable/secret slots skipped; full snapshot after the handshake and deltas ≤ 1 per 30 s between friends who are not grouped; bank time and gold synced and cached for offline friends; sharing switches (nothing of that kind sent, receivers drop the cache); INVREQ when a delta doesn't fit; hostile payloads; snapshot size. Tab: sort by total, holder chips with bank tag, search as you type, category and location filters, async loading of uncached names, empty-result hint, gold bar (non-sharers left out, stale marker, total), last updated column, no messaging button | `inventory_spec.lua` |
+| Wishlist: add by name / link / ID, quantity validation, remove; shift-click link into the box (post-hook); sync to friends who are not grouped; received lists stored under the sender only and never editable; "N among friends" (green), "looted tonight", "no friend has it yet"; wishlist loot banner (own wish, friend's wish), banner toggle, chat-line-only mode, unrelated loot ignored | `wishlist_spec.lua` |
+| Profiles: sections mapping incl. "—" for missing fields (older friends), extras synced between friends who are not grouped, hostile extras, "first to die in a dungeon", played time counted quietly, tab list + selection | `profiles_spec.lua` |
+| Tonight: KPIs and timeline with friends who are not grouped, 06:00 boundary, timeline across reload, 7-day pruning, evening recap once per evening (local only), recap off, no recap after an empty evening | `tonight_spec.lua` |
+| Window open/ESC/toggle/position, tabs (Leaderboard first, Friends last), leaderboard contents and selectors, minimap button clicks, tooltip lines, minimap hide/show, Addon Compartment callbacks, footer version status | `window_spec.lua` |
 
 ---
 
@@ -175,6 +179,31 @@ hidden addon messages. Everything with a friend is in section 3.
 
 ---
 
+### 2.8 Stage B: inventory, wishlist, profiles, tonight (solo)
+
+**Inventory** (with `/lp debug on`)
+- [ ] Tab **Inventory**: title "Friends' inventory", subtitle "Bags and banks of your LooserPiml friends, updated automatically", views Items / Wishlists.
+- [ ] `/lp test on`, Settings › Testing › "Fill with sample friends": gold bar with Lena, Max, Jo (not Kim) and a total; rows sorted by total; holder chips with a grey "bank" tag; "Last updated" shows "bags now · bank 3 days ago" and one "offline · last seen ...". 📸
+- [ ] Type "leather" in the search box: the list filters while typing. Materials / Consumables / Gear and Bags + bank / Bags / Bank switch the rows. A search with no result shows "None of your friends has this yet ..." with "+ Add to my wishlist".
+- [ ] Your own bags: loot or move something; within a few seconds your own counts in the tab change. Open the bank: your bank items appear (as yours, with the bank tag); after closing they stay.
+- [ ] An item you never saw before (from a friend, later) shows "Loading ..." for a moment and then its name.
+
+**Wishlist**
+- [ ] Wishlists view: type "Linen Cloth" (or any item you have) + quantity → "+ Add to my wishlist". Shift-click an item in your bags while the box has focus: its link goes into the box. 📸
+- [ ] Your entry shows "for you" and a Remove button; sample friends' entries ("for Lena", "for Jo") have no Remove button.
+- [ ] `/lp sim wishloot Max`: banner "Max looted Medium Leather ×3 · On Lena's wishlist · 7 still needed" (test mode).
+- [ ] Settings › Inventory › "Banner when a wishlist item is looted" off: the sim shows nothing.
+
+**Profiles**
+- [ ] Tab **Profiles**: you first with your level; clicking a sample friend switches the right side. Sections Progress, Deaths, Loot & gold, Professions, Travel, PvP, Social; "—" where there is no data. Your own professions and favourite zone appear. 📸
+
+**Tonight**
+- [ ] Tab **Tonight**: awards card, five tiles (Session, Deaths, Level-ups, Gold looted, Duels), timeline with your real events of tonight (time, icon, text), newest at the bottom. `/reload`: the timeline is still there.
+- [ ] Next day (first login after 06:00): a small window "Last evening (...)" with last evening's awards and totals, once; not again after `/reload`. Settings › Stats › "Show evening recap" off: no window. 📸
+
+**Gold**
+- [ ] Leaderboard › Gold: rows read "71g 60s right now"; Gold Hoarder card with "right now".
+
 ## 3. Two players: you and one friend (about 45 minutes)
 
 Order: install, add each other, **not grouped first** (that's the normal
@@ -185,10 +214,10 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 📸 and send them to me together with anything that looks wrong.
 
 ### 3.1 Install the beta (both, 5 min)
-- [ ] Your friend installs **v0.2.0-beta.1** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
+- [ ] Your friend installs **v0.2.0-beta.2** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
 - [ ] You either use the same beta or stay on the dev junction (`dev`). With `dev`, version warnings don't appear (dev builds are never compared); that's correct.
 - [ ] In-game, character select › AddOns: LooserPiml is listed and enabled (tick "Load out of date AddOns" if needed). No Lua error on login.
-- [ ] `/lp version` on the friend's side shows `v0.2.0-beta.1`. 📸 WowUp's addon list with the version, and the `/lp version` line.
+- [ ] `/lp version` on the friend's side shows `v0.2.0-beta.2`. 📸 WowUp's addon list with the version, and the `/lp version` line.
 
 ### 3.2 Add each other (both, 5 min)
 - [ ] **WoW friends**: Social (O) › Add Friend, in both directions. Each sees the other as online.
@@ -203,6 +232,15 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 - [ ] **Offline display**: the friend logs out. Within a few seconds their status is "offline", the leaderboard still lists them with "(offline)" and their last values. They log back in: "connected" again within about 10 s. 📸 the leaderboard row with "(offline)".
 - [ ] **Remove friend**: you remove them in the Friends tab. Their next death: no banner, no chat line for you. Your next death: they get nothing. Add them again: "connected" again within a few seconds.
 - [ ] At no time a "No player named ... is currently playing" line in chat.
+
+### 3.3b Inventory, wishlist, profiles, tonight, still not grouped (15 min)
+- [ ] **Inventory**: within about 10 s after "connected" your friend's bags appear in your Inventory tab (and yours in theirs); their gold is in the gold bar. They loot something: their count changes within about 30 s. 📸 your Inventory tab with their chips.
+- [ ] **Bank**: your friend opens their bank: "bank now" in your "Last updated" column, their bank items with the "bank" tag. They close it and log out: "offline · last seen ..." and their items stay listed. 📸
+- [ ] **Sharing off**: your friend turns off "Share my bags and bank": within a few seconds their items vanish from your tab (gold stays). "Share my gold" off: they leave the gold bar, the Gold ranking and Gold Hoarder. Both on again: everything is back.
+- [ ] **Wishlist**: you add an item your friend can loot (e.g. Linen Cloth ×20). Within about 10 s they see "for <you>" in their Wishlists view, without a Remove button. They loot that item: you get the banner "<friend> looted Linen Cloth ×N · On your wishlist · M still needed", they see "On <you>'s wishlist". 📸 the banner.
+- [ ] Your wishlist entry then shows "N looted tonight" (and "N among friends").
+- [ ] **Profiles**: your friend's profile shows their level, professions, deaths and travel; fields their client doesn't have yet show "—". 📸
+- [ ] **Tonight**: the timeline lists their deaths and level-ups too; the Deaths tile counts both of you.
 
 ### 3.4 Grouped in a dungeon (15 min)
 - [ ] Group up (the Friends tab still says connected; nothing changes about the messages, they stay whispers).
@@ -225,7 +263,7 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 | 1 | Interface number is 16001 and stays that at launch (Nov 4, 2026) | `/dump select(4, GetBuildInfo())` | **16001 confirmed on the beta (2026-10-11)**. Launch value still open |
 | 2 | Client folder name `_classic_beta_` (beta). Launch name? | Look in the WoW folder after launch | |
 | 3 | LibStub, CallbackHandler, AceComm r14 + ChatThrottleLib v32, AceSerializer, LibDeflate load on Forever | `/lp selftest` step 1, no Lua errors | **OK (2026-10-11)**: CallbackHandler r8, AceComm r14, AceSerializer r5, LibDeflate r3 loaded, roundtrip OK |
-| 4 | Addon whisper to yourself (incl. multi-chunk) is delivered | `/lp selftest` | **No (2026-10-11)**: server answers "No player named 'X' is currently playing" per chunk. Selftest now uses the group channel instead (see #5) |
+| 4 | Addon whisper to yourself (incl. multi-chunk) is delivered | `/lp selftest` | **No (2026-10-11)**: server answers "No player named 'X' is currently playing" per chunk. The self-test now pings a connected friend, who echoes it (see #5) |
 | 5 | WHISPER addon messages arrive between friends who are not grouped (incl. multi-chunk) | Section 3.3 (self-test, ticker, stats) | |
 | 6 | During boss encounters: `InChatMessagingLockdown()` is true and/or sends return `AddOnMessageLockdown` (11); messages sent then are dropped, not delayed by the server | Section 3.4, debug log ("refused by the client") | |
 | 7 | Are regular dungeons (outside encounters) a "communication-restricted map"? If yes, all dungeon messages are delayed until you leave | `/dump C_ChatInfo.InChatMessagingLockdown()` inside a dungeon | |
@@ -275,4 +313,12 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 | 51 | Nothing reaches a player who isn't on the list: a non-listed LooserPiml user in the group receives nothing (their debug log stays silent about you) | Section 2.7 (stranger with LooserPiml) | |
 | 52 | `C_FriendList.GetNumFriends`/`GetFriendInfoByIndex` list the character friends; `LOCALIZED_CLASS_NAMES_MALE/FEMALE` exist (class colors in "Add from WoW friends") | Section 2.7 | |
 | 53 | `Settings.CreateDropdown` with `Settings.CreateControlTextContainer` renders the "Ticker messages from friends" dropdown and saves the choice | Section 2.6 | |
+| 55 | Bag and bank containers as in `Enum.BagIndex` (backpack 0, bags 1-4, reagent bag 5, `Characterbanktab` -2, `CharacterBankTab_1-9` 6-14) are readable with `C_Container`; the bank reads only while open; `BAG_UPDATE_DELAYED` and `PLAYERBANKSLOTS_CHANGED` fire | Section 2.8 (own bags and bank) | |
+| 56 | `C_Item.GetItemNameByID`, `GetItemQualityByID`, `GetItemInfoInstant` (class, icon, type name) and `Item:CreateFromItemID():ContinueOnItemLoad` work; uncached names arrive | Section 2.8 / 3.3b | |
+| 57 | Shift-clicking an item puts its link into the wishlist box (post-hook on `ChatFrameUtil.InsertLink` or `ChatEdit_InsertLink`) | Section 2.8 (wishlist) | |
+| 58 | `C_Item.GetItemInfoInstant("Item Name")` resolves names of cached items (typing a wishlist item) | Section 2.8 (wishlist) | |
+| 59 | Inventory traffic between friends: full snapshot after "connected", deltas within ~30 s, no "No player named" lines, no throttling problems | Section 3.3b | |
+| 60 | Inside a dungeon, a friend's death message names the instance as its zone (for "first to die in a dungeon") | Section 3.4 | |
+| 61 | `GetProfessions`/`GetProfessionInfo` return name and skill level (profile professions) | Section 2.8 (profiles) | |
+| 62 | The evening recap window appears on the first login after 06:00 and only once | Section 2.8 (tonight, next day) | |
 | 54 | The GitHub release of a `-beta` tag is marked "Pre-release", and WowUp with Default Addon Channel = Beta installs it from the URL (with Stable it picks v0.1.0) | Section 3.1 | Release marking checked on GitHub (see STATUS.md); WowUp still open |

@@ -7,8 +7,9 @@ into a dungeon. You also get a leaderboard to settle who the Death King is.
 
 > Working title. Free, open source, no ads, no donation requests.
 
-**Status:** v0.2.0 beta (Ticker, stats, leaderboard, friends list).
-Friends' inventory, profession directory and bets are planned. See
+**Status:** v0.2.0 beta (Ticker, stats, leaderboard, Tonight, profiles,
+Friends' inventory with wishlists, friends list). A profession directory
+and bets are planned. See
 [STATUS.md](STATUS.md).
 
 ## Fair play
@@ -59,14 +60,14 @@ normal release instead.
 2. **Get Addons** → **Install from URL** → paste
    `https://github.com/snoopjust/LooserPiml` → **Install**. If LooserPiml
    is already installed, use **Check for Updates** instead.
-3. The version column shows `v0.2.0-beta.1` (or newer).
+3. The version column shows `v0.2.0-beta.2` (or newer).
 4. To get only normal releases again later, set the channel back to
    **Stable**. The next normal release replaces the beta.
 
 **Manual (fallback):** open
 [Releases](https://github.com/snoopjust/LooserPiml/releases), pick the
 newest release marked **Pre-release**, download its
-`LooserPiml-v0.2.0-beta.1-forever.zip` (the name follows the version) and
+`LooserPiml-v0.2.0-beta.2-forever.zip` (the name follows the version) and
 install it like the manual install above.
 
 ## Usage
@@ -85,8 +86,8 @@ in the middle of the screen and as a line in your chat window (only you
 see it), wherever they are playing.
 
 - **Minimap button** (the skull): left-click opens the LooserPiml window
-  with the leaderboard and your friends list, right-click opens the
-  settings, drag moves it. Hover it for friends online, deaths tonight and
+  (tabs Leaderboard, Tonight, Inventory, Profiles, Friends), right-click
+  opens the settings, drag moves it. Hover it for friends online, deaths tonight and
   the current Death King.
 - **Settings**: Esc › Options › AddOns › LooserPiml. Your friends list
   (subpage Friends), how friends' events are shown (banner, chat line only
