@@ -254,7 +254,7 @@ function Ticker:AddToTimeline(sender, data, isTest)
 		return
 	end
 	local entry = self.Display:Format(sender, data)
-	ns.Timeline:Add({ s = sender, k = data.k, x = entry.text, v = entry.variant, id = data.id, n = data.n })
+	ns.Timeline:Add({ s = sender, k = data.k, x = entry.text, i = self.Display.ICONS[entry.variant], id = data.id, n = data.n })
 end
 
 ----------------------------------------------------------------------

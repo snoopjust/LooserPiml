@@ -330,6 +330,21 @@ function Model.Aggregate(log, buckets, startTime)
 end
 
 -- { tonight = agg, week = agg, all = agg }
+-- One gaming day ("YYYY-MM-DD"): its rolled-up bucket plus the log
+-- events of that day (the evening recap of a past day).
+function Model.AggregateDay(log, buckets, dayKey)
+	local agg = Model.Empty()
+	if buckets[dayKey] then
+		Model.Merge(agg, buckets[dayKey])
+	end
+	for _, e in ipairs(log) do
+		if Model.DayKey(e.t) == dayKey then
+			Model.AddEvent(agg, e)
+		end
+	end
+	return agg
+end
+
 function Model.AggregateAll(log, buckets, now)
 	local result = {}
 	for _, period in ipairs(Model.PERIODS) do

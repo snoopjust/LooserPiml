@@ -53,6 +53,7 @@ Modules\Stats\Sync.lua
 Modules\Stats\Leaderboard.lua
 Modules\Stats\LeaderboardTab.lua
 Modules\Stats\Profiles.lua
+Modules\Stats\Tonight.lua
 Modules\Inventory\Inventory.lua
 Modules\Inventory\Items.lua
 Modules\Inventory\InventoryTab.lua

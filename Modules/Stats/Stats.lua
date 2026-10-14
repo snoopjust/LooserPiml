@@ -31,6 +31,9 @@ Stats.defaults = {
 
 function Stats:OnInitialize()
 	self.db = ns.DB:GetModuleDB(self.name, self.defaults)
+	-- Read before anything is recorded this session: the evening recap is
+	-- about the last day we were active before today (Tonight.lua).
+	self.previousActiveDay = self.db.lastActiveDay
 	self:RegisterOptions()
 	self:RegisterUI() -- LeaderboardTab.lua
 	self:RegisterProfilesTab() -- Profiles.lua
@@ -86,6 +89,10 @@ function Stats:OnEnable()
 	self.Model.Compact(char.log, char.buckets, GetServerTime())
 	self:StartLevelTimer()
 	self.lastTick = GetTime()
+	self.sessionStart = GetServerTime()
+	C_Timer.After(self.Tonight.RECAP_DELAY, function()
+		self:CheckEveningRecap()
+	end)
 	self.ticker = C_Timer.NewTicker(self.TICK_INTERVAL, function()
 		self:Tick()
 	end)

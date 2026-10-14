@@ -7,7 +7,7 @@
 --
 -- Entry: { t = server time, s = sender "Name-Realm", k = kind ("death",
 --          "levelup", "enter", "leave", "wishloot"), x = display text,
---          v = icon variant, id = item ID, n = count }
+--          i = icon (texture escape), id = item ID, n = count }
 local _, ns = ...
 
 local Timeline = {}
