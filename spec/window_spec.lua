@@ -108,6 +108,8 @@ describe("Main window", function()
 			assert.is_true(frame.metricButtons[2].selected)
 			assert.is_true(H.hasText(frame, "gold on hand right now"))
 			assert.is_true(H.hasText(frame, "right now")) -- Gold Hoarder card value
+			local goldRow = frame.rows[1].value.text_
+			assert.is_truthy(goldRow:find("g", 1, true) and goldRow:find("right now$"), goldRow) -- "71g 60s right now"
 			local function ranked()
 				local n = 0
 				for _, row in ipairs(frame.rows) do

@@ -37,7 +37,7 @@ Tab.AWARD_ICONS = {
 }
 Tab.MAX_ROWS = 10
 Tab.ROW_HEIGHT = 24
-Tab.BAR_WIDTH = 360
+Tab.BAR_WIDTH = 300
 
 Tab.period = "tonight"
 Tab.metric = "deaths"
@@ -95,7 +95,7 @@ function Tab:CreateRow(parent, index)
 	row.bar:SetHeight(14)
 	row.value = Window:CreateText(row, "GameFontHighlight", THEME.text, "RIGHT")
 	row.value:SetPoint("RIGHT", -4, 0)
-	row.value:SetWidth(110)
+	row.value:SetWidth(170) -- room for "1234g 56s right now"
 	return row
 end
 
@@ -198,9 +198,11 @@ function Tab:Refresh(frame)
 				name = name .. " |cff999999" .. L.OFFLINE_SUFFIX .. "|r"
 			end
 			widget.name:SetText(name)
-			-- Gold rows stay plain money (the column is narrow); the note
-			-- next to "Ranking" says "right now".
-			widget.value:SetText(Leaderboard.Format(row.value, metric.format))
+			local value = Leaderboard.Format(row.value, metric.format)
+			if metric.snapshot then
+				value = L.RIGHT_NOW:format(value) -- gold on hand: "71g 60s right now"
+			end
+			widget.value:SetText(value)
 			local width = math.max(1, math.floor(self.BAR_WIDTH * row.fraction))
 			widget.bar:SetWidth(width)
 			if row.fraction > 0 then
