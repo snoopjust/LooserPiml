@@ -33,6 +33,10 @@ function Stats:OnInitialize()
 	self.db = ns.DB:GetModuleDB(self.name, self.defaults)
 	self:RegisterOptions()
 	self:RegisterUI() -- LeaderboardTab.lua
+	self:RegisterProfilesTab() -- Profiles.lua
+	if self.RegisterTonightTab then
+		self:RegisterTonightTab() -- Tonight.lua
+	end
 end
 
 function Stats:RegisterOptions()
@@ -154,28 +158,33 @@ function Stats:Record(eventType, data)
 end
 
 -- Live counter in today's bucket (jumps, food, group time ...): too
--- frequent to log one by one.
-function Stats:Count(key, amount)
+-- frequent to log one by one. quiet: no LP_STATS_CHANGED (the value rides
+-- along with the next stats message; used for the per-minute played and
+-- group time, which would otherwise trigger a message every minute).
+function Stats:Count(key, amount, quiet)
 	if not self:IsCollecting() or not amount or amount == 0 then
 		return
 	end
 	local now = GetServerTime()
 	self.Model.Add(self.Model.Bucket(self:GetChar().buckets, now), key, amount, now)
-	self:Changed()
+	self:Changed(quiet)
 end
 
-function Stats:CountMap(mapName, key, amount)
+function Stats:CountMap(mapName, key, amount, quiet)
 	if not self:IsCollecting() or not key or not amount or amount == 0 then
 		return
 	end
 	local bucket = self.Model.Bucket(self:GetChar().buckets, GetServerTime())
 	bucket[mapName][key] = (bucket[mapName][key] or 0) + amount
-	self:Changed()
+	self:Changed(quiet)
 end
 
-function Stats:Changed()
+function Stats:Changed(quiet)
 	self.cache = nil
-	ns.Events:Fire("LP_STATS_CHANGED")
+	self.db.lastActiveDay = self.Model.DayKey(GetServerTime())
+	if not quiet then
+		ns.Events:Fire("LP_STATS_CHANGED")
+	end
 end
 
 -- Own aggregates { tonight, week, all }, cached until something changes or
@@ -272,19 +281,24 @@ function Stats:TakeElapsed()
 	return elapsed
 end
 
--- Time spent grouped: total and per LooserPiml friend in the group
--- (handshake answered this session). Grouping is only recorded as context
--- here; nothing in LooserPiml requires it.
+-- Played time (playedSeconds, for the profile) and time spent grouped:
+-- total and per LooserPiml friend in the group (handshake answered this
+-- session). Grouping is only recorded as context here; nothing in
+-- LooserPiml requires it.
 function Stats:Tick()
 	self:AccumulatePlayed()
 	local elapsed = math.floor(self:TakeElapsed() + 0.5)
-	if elapsed == 0 or not ns.Roster:IsInGroup() then
+	if elapsed == 0 then
 		return
 	end
-	self:Count("groupSeconds", elapsed)
+	self:Count("playedSeconds", elapsed, true)
+	if not ns.Roster:IsInGroup() then
+		return
+	end
+	self:Count("groupSeconds", elapsed, true)
 	for _, member in ipairs(ns.Roster:GetOthers()) do
 		if not member.fake and ns.Friends:IsConfirmed(member.name) then
-			self:CountMap("groupWith", member.name, elapsed)
+			self:CountMap("groupWith", member.name, elapsed, true)
 		end
 	end
 end

@@ -234,6 +234,40 @@ function H.group(specs)
 	return clients, net
 end
 
+-- Every LooserPiml message a client handed to the network, decoded, with
+-- AceComm's multi-part chunks put back together (per target, like
+-- AceComm does on the receiving side): { t, d, chatType, target }.
+function H.decodedSent(mock)
+	local out, partial = {}, {}
+	for _, call in ipairs(mock.sent) do
+		if call.prefix == "LPiml" then
+			local key = tostring(call.chatType) .. ":" .. tostring(call.target)
+			local control, rest = call.text:match("^([\001-\009])(.*)$")
+			local text
+			if control == "\001" then
+				partial[key] = { rest }
+			elseif control == "\002" and partial[key] then
+				table.insert(partial[key], rest)
+			elseif control == "\003" and partial[key] then
+				table.insert(partial[key], rest)
+				text = table.concat(partial[key])
+				partial[key] = nil
+			elseif control == "\004" then
+				text = rest
+			elseif not control then
+				text = call.text
+			end
+			if text then
+				local envelope = mock.ns.Comm:Decode(text)
+				if envelope then
+					out[#out + 1] = { t = envelope.t, d = envelope.d, chatType = call.chatType, target = call.target }
+				end
+			end
+		end
+	end
+	return out
+end
+
 -- All texts (SetText) of a widget tree that are currently shown, colors
 -- stripped, in creation order. Hidden subtrees are skipped.
 function H.texts(object, out)

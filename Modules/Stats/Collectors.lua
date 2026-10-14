@@ -50,6 +50,8 @@ function Stats:EnableCollectors()
 	ns.Events:Register(self, "ZONE_CHANGED_INDOORS", "OnZoneChanged")
 	ns.Events:Register(self, "ZONE_CHANGED_NEW_AREA", "OnZoneChanged")
 	ns.Events:Register(self, "UNIT_SPELLCAST_SUCCEEDED", "OnSpellcastSucceeded")
+	-- Friends' deaths (the Ticker's messages; Comm allows several handlers)
+	ns.Comm:RegisterHandler(self, "TICK", self.OnFriendTick)
 	self:PostHook("TakeTaxiNode", function(index)
 		self:OnFlightTaken(index)
 	end)
@@ -74,11 +76,29 @@ function Stats:OnPlayerDead(_, info)
 		duringEncounter = info.duringEncounter or nil,
 		itype = info.instanceType,
 	})
+	-- "First to die in a dungeon": the first death of this visit among me
+	-- and my friends (their ticker deaths name the zone, which inside an
+	-- instance is the instance name; TODO(verify in-game)).
+	local visit = self.visit
+	if visit and not visit.someoneDied then
+		visit.someoneDied = true
+		self:Count("firstDeaths", 1)
+	end
+end
+
+function Stats:OnFriendTick(data, sender, meta)
+	local visit = self.visit
+	if not meta.test and visit and type(data) == "table" and data.k == "death" and data.z == visit.name then
+		visit.someoneDied = true
+	end
 end
 
 -- One registration per event and owner, so the battleground bookkeeping in
 -- PvP.lua is called from here instead of registering a second handler.
 function Stats:OnInstanceEnter(event, info)
+	if info.type == "party" or info.type == "raid" then
+		self.visit = { name = info.name, someoneDied = false }
+	end
 	self:Record("instance", { action = "enter", itype = info.type, name = info.name, id = info.id })
 	if self.OnPvPInstanceEnter then
 		self:OnPvPInstanceEnter(event, info)
@@ -86,6 +106,7 @@ function Stats:OnInstanceEnter(event, info)
 end
 
 function Stats:OnInstanceLeave(event, info)
+	self.visit = nil
 	self:Record("instance", { action = "leave", itype = info.type, name = info.name, id = info.id })
 	if self.OnPvPInstanceLeave then
 		self:OnPvPInstanceLeave(event, info)

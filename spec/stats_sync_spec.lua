@@ -7,10 +7,9 @@ end
 -- Decoded STATS messages this client handed to the network.
 local function statsMessages(mock)
 	local out = {}
-	for _, call in ipairs(mock.sent) do
-		local envelope = mock.ns.Comm:Decode(call.text)
-		if envelope and envelope.t == "STATS" then
-			out[#out + 1] = envelope
+	for _, m in ipairs(H.decodedSent(mock)) do
+		if m.t == "STATS" then
+			out[#out + 1] = m
 		end
 	end
 	return out

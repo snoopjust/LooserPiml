@@ -17,7 +17,11 @@
 -- STATS payload:
 --   { mv = Model.VERSION, day = "2026-10-11", week = "2026-10-05",
 --     class = "HUNTER", level = 23, gold = copper (only with "Share my gold"),
+--     prof = { { n = "Mining", r = 75 } }, fav = "Westfall", eve = 12,
 --     p = { tonight = aggregate, week = aggregate, all = aggregate } }
+-- prof/fav/eve (professions, favourite zone, evenings played) were added
+-- for the Profiles tab; older clients don't send them (the profile shows
+-- "—") and ignore them when they receive them.
 -- gold is a snapshot of the money on hand, not part of any period. A
 -- message without it means the friend doesn't share gold (any more).
 -- The day/week keys tell receivers whether "tonight"/"this week" are still
@@ -52,6 +56,9 @@ function Stats:BuildSyncPayload()
 		class = ns.Roster:GetPlayerClass(),
 		level = ns.PlayerEvents:GetLevel(),
 		gold = self:GetSharedGold(),
+		prof = self:ProfessionList(),
+		fav = self:FavouriteZone(),
+		eve = self:EveningsPlayed(),
 		p = {
 			tonight = self.Model.ForSync(aggregates.tonight),
 			week = self.Model.ForSync(aggregates.week),
@@ -132,6 +139,7 @@ function Stats:OnStatsMessage(data, sender, meta)
 	else
 		friend.gold = nil -- not shared
 	end
+	friend.prof, friend.fav, friend.eve = self.CleanProfileExtras(data)
 	friend.updated = time()
 	friend.stats = {
 		tonight = Model.Sanitize(data.p.tonight),
@@ -252,6 +260,11 @@ function Stats:FillSampleFriends()
 			day = Model.DayKey(now),
 			week = Model.WeekKey(now),
 			stats = stats,
+			level = 20 + i * 4,
+			-- Profile extras for the first two only: the others show "—".
+			prof = i <= 2 and { { n = "Mining", r = 50 + i * 20 }, { n = "Blacksmithing", r = 40 + i * 15 } } or nil,
+			fav = i <= 2 and (i == 1 and "Westfall" or "Duskwood") or nil,
+			eve = i <= 2 and 4 + i or nil,
 			-- Kim doesn't share gold, so the gold comparison leaves her out.
 			gold = member.name ~= "Kim" and rand(20, 900) * 10000 + rand(0, 9999) or nil,
 		}

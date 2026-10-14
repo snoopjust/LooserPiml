@@ -2,14 +2,7 @@ local H = require("helpers")
 
 -- Decoded LooserPiml messages a client handed to the network, with how.
 local function sentMessages(mock)
-	local out = {}
-	for _, call in ipairs(mock.sent) do
-		if call.prefix == "LPiml" then
-			local envelope = mock.ns.Comm:Decode(call.text)
-			out[#out + 1] = { t = envelope and envelope.t, chatType = call.chatType, target = call.target, d = envelope and envelope.d }
-		end
-	end
-	return out
+	return H.decodedSent(mock)
 end
 
 -- Messages `to` received that came from `from`.
