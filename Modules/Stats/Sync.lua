@@ -16,8 +16,10 @@
 --
 -- STATS payload:
 --   { mv = Model.VERSION, day = "2026-10-11", week = "2026-10-05",
---     class = "HUNTER", level = 23,
+--     class = "HUNTER", level = 23, gold = copper (only with "Share my gold"),
 --     p = { tonight = aggregate, week = aggregate, all = aggregate } }
+-- gold is a snapshot of the money on hand, not part of any period. A
+-- message without it means the friend doesn't share gold (any more).
 -- The day/week keys tell receivers whether "tonight"/"this week" are still
 -- the current ones; an outdated tonight counts as empty.
 local _, ns = ...
@@ -49,6 +51,7 @@ function Stats:BuildSyncPayload()
 		week = self.Model.WeekKey(now),
 		class = ns.Roster:GetPlayerClass(),
 		level = ns.PlayerEvents:GetLevel(),
+		gold = self:GetSharedGold(),
 		p = {
 			tonight = self.Model.ForSync(aggregates.tonight),
 			week = self.Model.ForSync(aggregates.week),
@@ -122,6 +125,13 @@ function Stats:OnStatsMessage(data, sender, meta)
 	friend.level = type(data.level) == "number" and data.level >= 1 and data.level <= 1000 and math.floor(data.level) or friend.level
 	friend.day = type(data.day) == "string" and data.day:sub(1, 10) or nil
 	friend.week = type(data.week) == "string" and data.week:sub(1, 10) or nil
+	-- Untrusted number: whole copper, 0 .. 10^13 (more than any character can hold).
+	local gold = data.gold
+	if type(gold) == "number" and gold == gold and gold >= 0 and gold <= 1e13 then
+		friend.gold = math.floor(gold)
+	else
+		friend.gold = nil -- not shared
+	end
 	friend.updated = time()
 	friend.stats = {
 		tonight = Model.Sanitize(data.p.tonight),
@@ -158,6 +168,7 @@ function Stats:GetParticipants(period)
 			agg = self:GetAggregates()[period],
 			isSelf = true,
 			online = true,
+			gold = self:GetSharedGold(),
 		},
 	}
 	for name, entry in pairs(ns.Friends:GetDB()) do
@@ -170,6 +181,7 @@ function Stats:GetParticipants(period)
 				online = ns.Friends:IsOnline(name),
 				lastSeen = (cached and cached.lastSeen) or entry.lastSeen,
 				version = entry.version,
+				gold = cached and cached.gold,
 			}
 		end
 	end
@@ -181,6 +193,7 @@ function Stats:GetParticipants(period)
 				agg = self:GetFriendAggregate(friend, period),
 				online = true,
 				lastSeen = friend.lastSeen,
+				gold = friend.gold,
 				fake = true,
 			}
 		end
@@ -239,6 +252,8 @@ function Stats:FillSampleFriends()
 			day = Model.DayKey(now),
 			week = Model.WeekKey(now),
 			stats = stats,
+			-- Kim doesn't share gold, so the gold comparison leaves her out.
+			gold = member.name ~= "Kim" and rand(20, 900) * 10000 + rand(0, 9999) or nil,
 		}
 	end
 	ns.Events:Fire("LP_FRIENDS_CHANGED")

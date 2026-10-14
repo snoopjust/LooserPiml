@@ -19,7 +19,7 @@ describe("Options", function()
 			local _, ns = H.client()
 			local O = ns.Options
 			for _, key in ipairs({ "ticker.levelup", "ticker.death", "ticker.drowned", "ticker.dungeon",
-				"ticker.raid", "ticker.bossRecap", "ticker.own", "banner.sound", "stats.collect", "stats.share" }) do
+				"ticker.raid", "ticker.bossRecap", "ticker.own", "banner.sound", "stats.collect", "stats.share", "stats.shareGold" }) do
 				assert.is_true(O:Get(key), key)
 			end
 			assert.are.equal(4, O:Get("banner.hold"))

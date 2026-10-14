@@ -127,6 +127,11 @@ function Tab:Create(parent)
 	frame.rankHeader = Window:CreateText(frame, "GameFontNormalLarge", THEME.gold)
 	frame.rankHeader:SetPoint("TOPLEFT", 4, -158)
 	frame.rankHeader:SetText(L.RANKING)
+	-- Shown for snapshot metrics (gold): the period buttons still switch the
+	-- other cards and metrics, but not this ranking.
+	frame.metricNote = Window:CreateText(frame, "GameFontHighlightSmall", THEME.muted)
+	frame.metricNote:SetPoint("LEFT", frame.rankHeader, "RIGHT", 10, 0)
+	frame.metricNote:SetText(L.GOLD_RIGHT_NOW_NOTE)
 	frame.metricButtons = {}
 	for i, metric in ipairs(Stats.Leaderboard.METRICS) do
 		local button = Window:CreateButton(frame, self.METRIC_LABELS[metric.id], 104, 22, function()
@@ -153,14 +158,19 @@ end
 
 function Tab:Refresh(frame)
 	local Leaderboard = Stats.Leaderboard
+	local participants = Stats:GetParticipants(self.period)
+	local rows, metric = Leaderboard.Ranking(participants, self.metric)
 	for _, button in ipairs(frame.periodButtons) do
 		button:SetSelected(button.periodId == self.period)
 	end
 	for _, button in ipairs(frame.metricButtons) do
 		button:SetSelected(button.metricId == self.metric)
 	end
-
-	local participants = Stats:GetParticipants(self.period)
+	if metric.snapshot then
+		frame.metricNote:Show()
+	else
+		frame.metricNote:Hide()
+	end
 
 	for i, card in ipairs(Leaderboard.HallOfFame(participants)) do
 		local widget = frame.cards[i]
@@ -168,14 +178,17 @@ function Tab:Refresh(frame)
 		widget.award:SetText(self.AWARD_LABELS[card.award.id])
 		if card.winner then
 			widget.winner:SetText(displayName(card.winner))
-			widget.value:SetText(Leaderboard.Format(card.winner.value, card.award.format))
+			local value = Leaderboard.Format(card.winner.value, card.award.format)
+			if card.award.snapshot then
+				value = L.RIGHT_NOW:format(value)
+			end
+			widget.value:SetText(value)
 		else
 			widget.winner:SetText(L.NO_ONE_YET)
 			widget.value:SetText("")
 		end
 	end
 
-	local rows, metric = Leaderboard.Ranking(participants, self.metric)
 	for i, widget in ipairs(frame.rows) do
 		local row = rows[i]
 		if row then
@@ -185,6 +198,8 @@ function Tab:Refresh(frame)
 				name = name .. " |cff999999" .. L.OFFLINE_SUFFIX .. "|r"
 			end
 			widget.name:SetText(name)
+			-- Gold rows stay plain money (the column is narrow); the note
+			-- next to "Ranking" says "right now".
 			widget.value:SetText(Leaderboard.Format(row.value, metric.format))
 			local width = math.max(1, math.floor(self.BAR_WIDTH * row.fraction))
 			widget.bar:SetWidth(width)
@@ -198,7 +213,7 @@ function Tab:Refresh(frame)
 			widget:Hide()
 		end
 	end
-	if #rows <= 1 then
+	if #participants <= 1 then
 		frame.empty:Show() -- only me so far
 	else
 		frame.empty:Hide()

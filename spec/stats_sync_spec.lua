@@ -153,6 +153,50 @@ describe("Stats sync", function()
 		assert.are.equal(2, messages[1].d.p.tonight.n.deaths)
 	end)
 
+	it("shares current gold with friends, and stops when 'Share my gold' is off", function()
+		local clients = H.friends({ { name = "Me" }, { name = "Max", class = "WARRIOR" } })
+		local me, max = clients[1], clients[2]
+		max.money = 123456
+		max:Fire("PLAYER_MONEY")
+		me:Advance(40)
+		local function maxEntry(period)
+			for _, entry in ipairs(stats(me):GetParticipants(period)) do
+				if entry.name == "Max-TestRealm" then
+					return entry
+				end
+			end
+		end
+		assert.are.equal(123456, maxEntry("tonight").gold)
+		assert.are.equal(123456, maxEntry("all").gold) -- a snapshot: the same in every period
+		local winner = stats(me).Leaderboard.Award(stats(me):GetParticipants("week"), "goldHoarder")
+		assert.are.equal("Max-TestRealm", winner.name)
+
+		max.ns.Options:Set("stats.shareGold", false)
+		me:Advance(40)
+		assert.is_nil(maxEntry("tonight").gold)
+		assert.is_not_nil(maxEntry("tonight")) -- still on the leaderboard for everything else
+		local rows = stats(me).Leaderboard.Ranking(stats(me):GetParticipants("tonight"), "gold")
+		for _, row in ipairs(rows) do
+			assert.are_not.equal("Max-TestRealm", row.name)
+		end
+		-- my own gold is left out too when I don't share it
+		me.ns.Options:Set("stats.shareGold", false)
+		assert.is_nil(stats(me):GetParticipants("tonight")[1].gold)
+		assert.are.equal(0, #stats(me).Leaderboard.Ranking(stats(me):GetParticipants("tonight"), "gold"))
+	end)
+
+	it("drops hostile gold values", function()
+		local mock, ns = H.client({ confirmed = { "Max" } })
+		local id = 0
+		for _, gold in ipairs({ -5, 1e20, "lots", 0 / 0 }) do
+			id = id + 1
+			local text = ns.Comm:Encode({ v = 1, t = "STATS", s = 4, id = id, d = { p = { all = {} }, gold = gold } })
+			mock:Fire("CHAT_MSG_ADDON", "LPiml", text, "WHISPER", "Max-TestRealm")
+			assert.is_nil(stats(mock).db.friendStats["Max-TestRealm"].gold)
+		end
+		H.assertNoErrors(mock)
+	end)
+
 	it("keeps the message small: a busy evening fits in a few chunks", function()
 		local mock = H.client({ group = { { name = "Max", class = "WARRIOR" } } })
 		for i = 1, 30 do

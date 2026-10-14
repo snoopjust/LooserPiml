@@ -103,20 +103,28 @@ describe("Main window", function()
 			w:Open()
 			local tab = mock.ns:GetModule("Stats").LeaderboardTab
 			local frame = w.frame.tabFrames.leaderboard
-			frame.metricButtons[2]:Click() -- Gold looted
+			frame.metricButtons[2]:Click() -- Gold (right now)
 			assert.are.equal("gold", tab.metric)
 			assert.is_true(frame.metricButtons[2].selected)
-			assert.is_true(H.hasText(frame, "g")) -- money formatted values
-			frame.periodButtons[3]:Click() -- All time
+			assert.is_true(H.hasText(frame, "gold on hand right now"))
+			assert.is_true(H.hasText(frame, "right now")) -- Gold Hoarder card value
+			local function ranked()
+				local n = 0
+				for _, row in ipairs(frame.rows) do
+					if row.shown then
+						n = n + 1
+					end
+				end
+				return n
+			end
+			assert.are.equal(4, ranked()) -- me + Max, Lena, Jo; Kim doesn't share gold
+			frame.periodButtons[3]:Click() -- All time: still switches the cards
 			assert.are.equal("all", tab.period)
 			assert.is_true(frame.periodButtons[3].selected)
-			local ranked = 0
-			for _, row in ipairs(frame.rows) do
-				if row.shown then
-					ranked = ranked + 1
-				end
-			end
-			assert.are.equal(5, ranked) -- me + 4 sample friends
+			assert.are.equal(4, ranked())
+			frame.metricButtons[1]:Click() -- Deaths
+			assert.is_false(H.hasText(frame, "gold on hand right now"))
+			assert.are.equal(5, ranked()) -- me + 4 sample friends
 		end)
 	end)
 

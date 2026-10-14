@@ -11,17 +11,20 @@ Stats.Leaderboard = Leaderboard
 
 -- Hall of Fame cards. better: "high" = biggest value wins, "low" = smallest.
 -- tieKey: aggregate timestamp used for "the earlier achiever wins".
+-- snapshot: the value is the participant's current state (gold on hand),
+-- not a per-period aggregate, so the period selector doesn't apply, and
+-- participants without the value (they don't share it) are left out.
 Leaderboard.AWARDS = {
 	{ id = "deathKing", metric = "deaths", better = "high", tieKey = "deaths", format = "number" },
 	{ id = "fishFood", metric = "drowned", better = "high", tieKey = "drowned", format = "number" },
-	{ id = "goldHoarder", metric = "moneyLooted", better = "high", tieKey = "moneyLooted", format = "money" },
+	{ id = "goldHoarder", metric = "gold", better = "high", format = "money", snapshot = true },
 	{ id = "speedrunner", metric = "avgLevelTime", better = "low", tieKey = "levelTime", format = "duration" },
 }
 
 -- Ranking list metrics (selector order).
 Leaderboard.METRICS = {
 	{ id = "deaths", metric = "deaths", tieKey = "deaths", format = "number" },
-	{ id = "gold", metric = "moneyLooted", tieKey = "moneyLooted", format = "money" },
+	{ id = "gold", metric = "gold", format = "money", snapshot = true },
 	{ id = "quests", metric = "quests", tieKey = "quests", format = "number" },
 	{ id = "levelups", metric = "levelUps", tieKey = "levelUps", format = "number" },
 }
@@ -35,8 +38,14 @@ local function find(list, id)
 	return nil
 end
 
--- Value of a metric in an aggregate; nil if there is nothing to show.
-function Leaderboard.Value(agg, metric)
+-- Value of a metric for a participant; nil if there is nothing to show.
+-- "gold" is the snapshot participant.gold (nil: not shared), everything
+-- else comes from the period aggregate.
+function Leaderboard.Value(participant, metric)
+	if metric == "gold" then
+		return participant.gold
+	end
+	local agg = participant.agg
 	if not agg then
 		return nil
 	end
@@ -47,7 +56,7 @@ function Leaderboard.Value(agg, metric)
 end
 
 local function achievedAt(participant, tieKey)
-	local at = participant.agg and participant.agg.at and participant.agg.at[tieKey]
+	local at = tieKey and participant.agg and participant.agg.at and participant.agg.at[tieKey]
 	return at or math.huge -- unknown: counts as "later"
 end
 
@@ -75,7 +84,7 @@ function Leaderboard.Award(participants, awardOrId)
 	local award = type(awardOrId) == "table" and awardOrId or find(Leaderboard.AWARDS, awardOrId)
 	local entries = {}
 	for _, participant in ipairs(participants or {}) do
-		local value = Leaderboard.Value(participant.agg, award.metric)
+		local value = Leaderboard.Value(participant, award.metric)
 		if value and (award.better == "low" or value > 0) then
 			entries[#entries + 1] = { participant = participant, value = value }
 		end
@@ -97,12 +106,16 @@ function Leaderboard.HallOfFame(participants)
 end
 
 -- Rows for the ranking list: everyone, best first, with the bar length
--- relative to the leader (0..1).
+-- relative to the leader (0..1). Snapshot metrics (gold) list only
+-- participants who share that value.
 function Leaderboard.Ranking(participants, metricId)
 	local metric = find(Leaderboard.METRICS, metricId) or Leaderboard.METRICS[1]
 	local entries = {}
 	for _, participant in ipairs(participants or {}) do
-		entries[#entries + 1] = { participant = participant, value = Leaderboard.Value(participant.agg, metric.metric) or 0 }
+		local value = Leaderboard.Value(participant, metric.metric)
+		if value or not metric.snapshot then
+			entries[#entries + 1] = { participant = participant, value = value or 0 }
+		end
 	end
 	sortEntries(entries, "high", metric.tieKey)
 	local leader = entries[1] and entries[1].value or 0

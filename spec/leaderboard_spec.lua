@@ -25,16 +25,30 @@ describe("Leaderboard provider", function()
 	end
 
 	describe("awards", function()
-		it("crowns the Death King, Fish Food and Gold Hoarder by the highest value", function()
+		it("crowns the Death King and Fish Food by the highest value", function()
 			local list = {
-				p("Max", { deaths = { 3, 100 }, drowned = { 1, 100 }, moneyLooted = { 500, 100 } }),
-				p("Lena", { deaths = { 5, 200 }, moneyLooted = { 9000, 200 } }),
+				p("Max", { deaths = { 3, 100 }, drowned = { 1, 100 } }),
+				p("Lena", { deaths = { 5, 200 } }),
 				p("Me", { deaths = { 1, 50 } }, { isSelf = true }),
 			}
 			assert.are.equal("Lena", Leaderboard.Award(list, "deathKing").name)
 			assert.are.equal(5, Leaderboard.Award(list, "deathKing").value)
 			assert.are.equal("Max", Leaderboard.Award(list, "fishFood").name)
-			assert.are.equal("Lena", Leaderboard.Award(list, "goldHoarder").name)
+		end)
+
+		it("gives Gold Hoarder to the most gold on hand right now, not gold looted; non-sharers are left out", function()
+			local list = {
+				p("Max", { moneyLooted = { 900000, 100 } }, { gold = 5000 }),  -- looted a lot, spent it
+				p("Lena", { moneyLooted = { 100, 100 } }, { gold = 120000 }),
+				p("Kim", nil, { gold = nil }),                                  -- doesn't share gold
+				p("Me", nil, { isSelf = true, gold = 0 }),
+			}
+			local winner = Leaderboard.Award(list, "goldHoarder")
+			assert.are.equal("Lena", winner.name)
+			assert.are.equal(120000, winner.value)
+			assert.is_nil(Leaderboard.Award({ p("Kim"), p("Me", nil, { gold = 0 }) }, "goldHoarder")) -- zero never wins
+			local tie = Leaderboard.Award({ p("Zed", nil, { gold = 7 }), p("Abe", nil, { gold = 7 }) }, "goldHoarder")
+			assert.are.equal("Abe", tie.name)
 		end)
 
 		it("gives Speedrunner to the lowest average time per level", function()
@@ -89,9 +103,24 @@ describe("Leaderboard provider", function()
 		end)
 
 		it("handles all-zero and empty lists", function()
-			local rows = Leaderboard.Ranking({ p("Max"), p("Lena") }, "gold")
+			local rows = Leaderboard.Ranking({ p("Max"), p("Lena") }, "quests")
 			assert.are.equal(0, rows[1].fraction)
 			assert.are.same({}, (Leaderboard.Ranking({}, "deaths")))
+		end)
+
+		it("ranks 'Gold' by current gold, highest first, listing only friends who share it", function()
+			local list = {
+				p("Max", { moneyLooted = { 999999, 1 } }, { gold = 2500 }),
+				p("Lena", nil, { gold = 10000 }),
+				p("Kim"), -- doesn't share gold
+				p("Me", nil, { isSelf = true, gold = 5000 }),
+			}
+			local rows, metric = Leaderboard.Ranking(list, "gold")
+			assert.is_true(metric.snapshot)
+			assert.are.same({ "Lena", "Me", "Max" }, { rows[1].name, rows[2].name, rows[3].name })
+			assert.are.equal(3, #rows)
+			assert.are.equal(0.5, rows[2].fraction)
+			assert.are.equal("1g", Leaderboard.Format(rows[1].value, metric.format))
 		end)
 
 		it("formats values per metric", function()

@@ -25,6 +25,7 @@ Stats.MAX_TICK_GAP = 300    -- seconds: longer gaps (client frozen?) are not cou
 Stats.defaults = {
 	collect = true, -- setting: record stats at all
 	share = true,   -- setting: send my aggregates to my LooserPiml friends
+	shareGold = true, -- setting: include my current gold (Gold Hoarder, "Gold" ranking)
 	chars = {},
 	friendStats = {}, -- fullName -> latest aggregates received from that friend (Sync.lua)
 }
@@ -54,6 +55,17 @@ function Stats:RegisterOptions()
 		end,
 		set = function(value)
 			self.db.share = value and true or false
+		end,
+	})
+	Options:Add("stats", {
+		type = "checkbox", key = "stats.shareGold", label = L.OPT_STATS_SHARE_GOLD, tooltip = L.OPT_STATS_SHARE_GOLD_TIP, default = true,
+		get = function()
+			return self.db.shareGold ~= false
+		end,
+		set = function(value)
+			self.db.shareGold = value and true or false
+			-- Friends learn it with the next stats message (with or without gold).
+			self:Changed()
 		end,
 	})
 	Options:Add("stats", {
@@ -182,6 +194,21 @@ function Stats:GetAggregates()
 		self.cacheDay = day
 	end
 	return self.cache
+end
+
+-- Gold on hand right now (copper), or nil if "Share my gold" is off or the
+-- value isn't readable. Used for my own leaderboard entry and the STATS
+-- message; someone who doesn't share takes no part in the gold comparison,
+-- not even on their own screen.
+function Stats:GetSharedGold()
+	if self.db.shareGold == false or not GetMoney then
+		return nil
+	end
+	local money = GetMoney()
+	if ns.IsSecret(money) or type(money) ~= "number" or money < 0 then
+		return nil
+	end
+	return math.floor(money)
 end
 
 -- Wipes the own character's stats (settings button, with confirmation).

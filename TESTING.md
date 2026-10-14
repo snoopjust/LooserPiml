@@ -122,7 +122,9 @@ saved, so a restart clears them. TODO(verify in-game): do they exist on Forever?
 - [ ] The Addon Compartment (addon list button on the minimap) lists LooserPiml once, with icon; left/right click and tooltip work. No duplicate entry.
 - [ ] Tooltip: "LooserPiml", click hints, friends online with LooserPiml, deaths tonight, Death King.
 - [ ] Window: title "LooserPiml · Friends", tabs Leaderboard and Friends, close button, ESC closes it, it can be dragged and stays where it was after `/reload`. Colors look like the mockup (dark brown, bronze borders, gold headings), text is readable.
-- [ ] `/lp test on`, then Settings › Testing › "Fill with sample friends": the leaderboard shows four sample friends; period buttons (Tonight / This week / All time) and metric buttons (Deaths / Gold looted / Quests / Level-ups) switch the content; bars look right; names are class-colored.
+- [ ] `/lp test on`, then Settings › Testing › "Fill with sample friends": the leaderboard shows four sample friends; period buttons (Tonight / This week / All time) and metric buttons (Deaths / Gold / Quests / Level-ups) switch the content; bars look right; names are class-colored.
+- [ ] **Gold**: the Gold Hoarder card shows the most gold on hand with "… right now" (Kim, who doesn't share gold in the sample, never wins it). Metric "Gold": the note "gold on hand right now (the period does not apply)" appears next to Ranking, Kim is not listed, and switching Tonight / This week / All time doesn't change the gold rows (only the other cards).
+- [ ] Your own gold: the value in the Gold ranking matches your bag gold. Settings › Stats › "Share my gold" off: you disappear from the Gold ranking and can't win Gold Hoarder; on again: you're back.
 - [ ] Solo without test mode: the cards say "No one yet" (or show you), with the hint to add friends in the Friends tab.
 
 **Settings (Esc › Options › AddOns › LooserPiml)**
@@ -149,6 +151,7 @@ saved, so a restart clears them. TODO(verify in-game): do they exist on Forever?
 - [ ] After both added each other, the friend appears on your leaderboard within about 10 s; changes arrive within about 30 s.
 - [ ] After the friend logs out and you `/reload`, they are still listed, marked offline.
 - [ ] Settings › Stats › "Share my stats" off on one side: the other side stops receiving updates.
+- [ ] Gold: the friend picks up or spends gold; within about 30 s your Gold ranking shows their new amount, and Gold Hoarder goes to whoever has more right now (not who looted more). The friend turns "Share my gold" off: within about 30 s they are gone from the Gold ranking and the Gold Hoarder card, but still listed everywhere else.
 
 ### 2.7 LooserPiml friends and the communication rule
 

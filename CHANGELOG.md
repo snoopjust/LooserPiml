@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Gold Hoarder** now goes to the friend with the most gold on hand right
+  now (not gold looted). The ranking metric "Gold looted" became **Gold**:
+  current gold, highest first, marked "right now"; the period selector
+  doesn't apply to it. New setting **Share my gold** (Settings › Stats, on
+  by default): friends who turn it off are left out of both. Gold by
+  source is still recorded in the background.
+- The own character is never offered or listed as a LooserPiml friend.
+
 ## v0.2.0-beta.1 (2026-10-12, pre-release)
 
 First beta of v0.2.0, for the first test with a friend. Stats, leaderboard,
@@ -26,7 +36,8 @@ each on your own.
 - **Window "LooserPiml · Friends"** with the **Leaderboard**: Hall of Fame
   (Death King, Fish Food, Gold Hoarder, Speedrunner) and a ranking for
   deaths, gold looted, quests and level-ups, for tonight, this week or all
-  time. Friends who are offline stay listed with their last known totals.
+  time.
+  Friends who are offline stay listed with their last known totals.
 - **Settings** in Options › AddOns › LooserPiml: your friends list,
   "Ticker messages from friends" (Banner / Chat line only / Off), which
   Ticker messages to show (incl. boss recap and your own events), banner
