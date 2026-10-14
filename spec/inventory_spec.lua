@@ -213,3 +213,124 @@ describe("Inventory", function()
 		assert.is_true(chunks <= 12, "snapshot needs " .. chunks .. " chunks")
 	end)
 end)
+
+describe("Inventory tab", function()
+	after_each(H.checkClients)
+
+	local function open(mock)
+		mock.ns:GetModule("Stats"):FillSampleFriends()
+		mock.ns.Window:Open("inventory")
+		return mock.ns.Window.frame.tabFrames.inventory
+	end
+
+	local function shownRows(frame)
+		local out = {}
+		for _, row in ipairs(frame.itemsView.rows) do
+			if row.shown then
+				out[#out + 1] = H.stripColors(row.name.text_) .. " " .. row.total.text_
+			end
+		end
+		return out
+	end
+
+	it("lists items by total, highest first, with one chip per holder and a bank tag", function()
+		local mock = H.client({ testMode = true })
+		local frame = open(mock)
+		assert.is_true(H.hasText(frame, "Friends' inventory"))
+		assert.is_true(H.hasText(frame, "Bags and banks of your LooserPiml friends, updated automatically"))
+		local rows = shownRows(frame)
+		assert.are.equal("Linen Cloth 108", rows[1]) -- Max 40 + 60 (bank) + Jo 8
+		local chips = H.texts(frame.itemsView.rows[1])
+		assert.is_true(table.concat(chips, "|"):find("Max 100 bank", 1, true) ~= nil)
+		assert.is_true(H.hasText(frame, "items held by"))
+		mock.ns.TestMode:Disable()
+	end)
+
+	it("searches by item name as you type and filters by category and location", function()
+		local mock = H.client({ testMode = true })
+		local frame = open(mock)
+		local tab = mock.ns:GetModule("Inventory").InventoryTab
+		frame.itemsView.search:SetText("leather")
+		frame.itemsView.search.scripts.OnTextChanged(frame.itemsView.search)
+		assert.are.same({ "Medium Leather 74", "Light Leather 42" }, shownRows(frame))
+		assert.is_true(H.hasText(frame, "2 items held by 3 friends"))
+		frame.itemsView.locationButtons[3]:Click() -- Bank
+		assert.are.same({ "Medium Leather 68", "Light Leather 30" }, shownRows(frame))
+		frame.itemsView.search:SetText("")
+		frame.itemsView.search.scripts.OnTextChanged(frame.itemsView.search)
+		frame.itemsView.locationButtons[1]:Click()
+		frame.itemsView.categoryButtons[3]:Click() -- Consumables
+		assert.are.same({ "Minor Healing Potion 7" }, shownRows(frame))
+		frame.itemsView.categoryButtons[4]:Click() -- Gear
+		assert.are.same({ "Carving Knife 1" }, shownRows(frame))
+		assert.are.equal("gear", tab.category)
+		mock.ns.TestMode:Disable()
+	end)
+
+	it("loads uncached item names asynchronously and refreshes the row", function()
+		local mock = H.client({ testMode = true })
+		local frame = open(mock)
+		local inventory = mock.ns:GetModule("Inventory")
+		frame.itemsView.categoryButtons[2]:Click() -- Materials
+		local texts = table.concat(H.texts(frame.itemsView), "|")
+		assert.is_true(texts:find("Loading", 1, true) ~= nil) -- Silk Cloth isn't cached yet
+		assert.is_true(mock.itemLoads >= 1)
+		mock:Advance(2)
+		texts = table.concat(H.texts(frame.itemsView), "|")
+		assert.is_true(texts:find("Silk Cloth", 1, true) ~= nil)
+		assert.are.equal("Silk Cloth", inventory.Items.Info(4306).name)
+		mock.ns.TestMode:Disable()
+	end)
+
+	it("shows the 'none of your friends has this' hint with a wishlist button", function()
+		local mock = H.client({ testMode = true })
+		local frame = open(mock)
+		frame.itemsView.search:SetText("Arcanite Bar")
+		frame.itemsView.search.scripts.OnTextChanged(frame.itemsView.search)
+		assert.are.same({}, shownRows(frame))
+		assert.is_true(H.hasText(frame, "None of your friends has this yet. Add it to your wishlist"))
+		assert.is_true(frame.itemsView.emptyAdd.shown)
+		mock.ns.TestMode:Disable()
+	end)
+
+	it("gold bar: a chip per friend who shares gold, stale marker when offline, and a total", function()
+		local mock = H.client({ testMode = true })
+		mock.money = 50000
+		local frame = open(mock)
+		local chips = {}
+		for _, chip in ipairs(frame.goldChips) do
+			if chip.shown then
+				chips[#chips + 1] = H.stripColors(chip.text.text_)
+			end
+		end
+		assert.are.equal("Lena 125g", chips[1])
+		assert.are.equal("Max 71g 60s", chips[2])
+		assert.is_true(chips[#chips]:find("^Total") ~= nil)
+		for _, chip in ipairs(chips) do
+			assert.is_nil(chip:find("Kim", 1, true)) -- doesn't share gold
+		end
+		assert.are.equal(125 * 10000 + 716000 + 98000 + 50000, frame.goldTotal)
+		mock.ns.TestMode:Disable()
+	end)
+
+	it("last updated: 'bags now · bank 3 days ago' or 'offline · last seen ...'", function()
+		local mock = H.client({ testMode = true })
+		local frame = open(mock)
+		local text = table.concat(H.texts(frame.itemsView), "|")
+		assert.is_true(text:find("bags now · bank 3 days ago", 1, true) ~= nil)
+		assert.is_true(text:find("offline · last seen", 1, true) ~= nil)
+		assert.is_true(H.hasText(frame, "Banks update when their owner opens the bank."))
+		mock.ns.TestMode:Disable()
+	end)
+
+	it("has no button that would message a friend", function()
+		local mock = H.client({ testMode = true })
+		local frame = open(mock)
+		for _, text in ipairs(H.texts(frame)) do
+			local lower = text:lower()
+			assert.is_nil(lower:find("whisper", 1, true))
+			assert.is_nil(lower:find("ask ", 1, true))
+		end
+		mock.ns.TestMode:Disable()
+	end)
+end)

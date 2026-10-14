@@ -96,6 +96,26 @@ function Window:CreateButton(parent, label, width, height, onClick)
 	return button
 end
 
+-- An edit box in the window's look. Plain EditBox + BackdropTemplate, so
+-- it doesn't depend on Blizzard's input box templates.
+function Window:CreateEditBox(parent, width)
+	local box = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
+	box:SetSize(width, 22)
+	box:SetAutoFocus(false)
+	box:SetFontObject("ChatFontNormal")
+	box:SetTextInsets(6, 6, 0, 0)
+	box:SetMaxLetters(64)
+	if box.SetBackdrop then
+		box:SetBackdrop({ bgFile = self.WHITE, edgeFile = self.WHITE, edgeSize = 1 })
+		box:SetBackdropColor(THEME.background[1], THEME.background[2], THEME.background[3], 1)
+		box:SetBackdropBorderColor(THEME.bronze[1], THEME.bronze[2], THEME.bronze[3], 1)
+	end
+	box:SetScript("OnEscapePressed", function(b)
+		b:ClearFocus()
+	end)
+	return box
+end
+
 -- "|cffRRGGBBName|r" in class color (or the muted color if unknown).
 function Window:ColorName(name, class)
 	return ns.Roster:ColorName(name, class)
@@ -420,4 +440,8 @@ function Window:OnEnable()
 	self:CreateLauncher()
 	ns.Events:Register(self, "LP_STATS_CHANGED", "ScheduleRefresh")
 	ns.Events:Register(self, "LP_FRIENDS_CHANGED", "ScheduleRefresh")
+	ns.Events:Register(self, "LP_INVENTORY_CHANGED", "ScheduleRefresh")
+	ns.Events:Register(self, "LP_ITEM_LOADED", "ScheduleRefresh") -- an item name arrived from the cache
+	ns.Events:Register(self, "LP_WISHLIST_CHANGED", "ScheduleRefresh")
+	ns.Events:Register(self, "LP_TIMELINE_CHANGED", "ScheduleRefresh")
 end

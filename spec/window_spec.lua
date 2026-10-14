@@ -49,13 +49,16 @@ describe("Main window", function()
 		assert.is_false(w:IsShown())
 	end)
 
-	it("shows the Leaderboard tab first, then Friends", function()
+	it("shows the Leaderboard tab first and Friends last", function()
 		local mock = H.client()
 		window(mock):Open()
 		local buttons = window(mock).frame.tabButtons
-		assert.are.equal(2, #buttons)
-		assert.are.equal("leaderboard", buttons[1].tabId)
-		assert.are.equal("friends", buttons[2].tabId)
+		local ids = {}
+		for i, button in ipairs(buttons) do
+			ids[i] = button.tabId
+		end
+		assert.are.equal("leaderboard", ids[1])
+		assert.are.equal("friends", ids[#ids])
 		assert.is_true(buttons[1].selected)
 	end)
 

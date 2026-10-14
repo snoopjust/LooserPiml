@@ -208,6 +208,45 @@ function Util.ItemIDFromLink(link)
 	return tonumber(link:match("|Hitem:(%d+)"))
 end
 
+-- "now", "12 min ago", "3 h ago", "yesterday", "4 days ago" for a time in
+-- the past (server time). nil -> nil.
+function Util.FormatAgo(t, now)
+	if type(t) ~= "number" then
+		return nil
+	end
+	local L = ns.L
+	local seconds = (now or time()) - t
+	if seconds < 120 then
+		return L.AGO_NOW
+	elseif seconds < 3600 then
+		return L.AGO_MINUTES:format(math.floor(seconds / 60))
+	elseif seconds < 20 * 3600 then
+		return L.AGO_HOURS:format(math.floor(seconds / 3600))
+	end
+	local days = math.floor((seconds + 4 * 3600) / 86400)
+	if days <= 1 then
+		return L.AGO_YESTERDAY
+	end
+	return L.AGO_DAYS:format(days)
+end
+
+-- "today 23:10", "yesterday 23:10", "12 Oct 23:10" (local time).
+function Util.FormatWhen(t, now)
+	if type(t) ~= "number" then
+		return nil
+	end
+	local L = ns.L
+	now = now or time()
+	local clock = date("%H:%M", t)
+	local day, today = date("%Y-%m-%d", t), date("%Y-%m-%d", now)
+	if day == today then
+		return L.WHEN_TODAY:format(clock)
+	elseif day == date("%Y-%m-%d", now - 86400) then
+		return L.WHEN_YESTERDAY:format(clock)
+	end
+	return date("%d %b ", t) .. clock
+end
+
 function Util.DeepCopy(value)
 	if type(value) ~= "table" then
 		return value

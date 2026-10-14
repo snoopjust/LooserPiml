@@ -257,6 +257,8 @@ function Stats:FillSampleFriends()
 		}
 	end
 	ns.Events:Fire("LP_FRIENDS_CHANGED")
+	-- Other modules add their own sample data (inventory, wishlists).
+	ns.Events:Fire("LP_FILL_SAMPLES")
 	return true
 end
 
