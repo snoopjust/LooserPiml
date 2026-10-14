@@ -200,12 +200,37 @@ function Util.ParseOwnLoot(text)
 	return nil
 end
 
+-- Item quality colors as "ffRRGGBB" (the client's ITEM_QUALITY_COLORS when
+-- it has them, else the classic colors).
+local QUALITY_HEX = { [0] = "9d9d9d", "ffffff", "1eff00", "0070dd", "a335ee", "ff8000", "e6cc80", "00ccff" }
+function Util.QualityHex(quality)
+	local colors = ITEM_QUALITY_COLORS
+	if quality and colors and colors[quality] and type(colors[quality].hex) == "string" then
+		return (colors[quality].hex:gsub("^|c", ""))
+	end
+	return "ff" .. (QUALITY_HEX[quality or 1] or "ffffff")
+end
+
+-- "|cffRRGGBBname|r" with "|" in the name escaped.
+function Util.ColorItemName(name, quality)
+	return "|c" .. Util.QualityHex(quality) .. tostring(name):gsub("|", "||") .. "|r"
+end
+
 -- Item ID from an item link ("|Hitem:2589:..."), or nil.
 function Util.ItemIDFromLink(link)
 	if type(link) ~= "string" or ns.IsSecret(link) then
 		return nil
 	end
 	return tonumber(link:match("|Hitem:(%d+)"))
+end
+
+-- Start of the gaming day ("tonight") containing t: 06:00 local time, the
+-- same rule as Stats' Model.DayStart (kept here for modules that need it
+-- without depending on Stats).
+Util.DAY_START_HOUR = 6
+function Util.GamingDayStart(t)
+	local d = date("*t", t - Util.DAY_START_HOUR * 3600)
+	return time({ year = d.year, month = d.month, day = d.day, hour = Util.DAY_START_HOUR, min = 0, sec = 0 })
 end
 
 -- "now", "12 min ago", "3 h ago", "yesterday", "4 days ago" for a time in

@@ -1001,8 +1001,17 @@ function Mock:BuildEnv()
 			local item = itemOf(id)
 			return item and item.cached and item.name or nil
 		end,
-		-- itemID, itemType, itemSubType, itemEquipLoc, icon, classID, subclassID
+		-- itemID, itemType, itemSubType, itemEquipLoc, icon, classID, subclassID.
+		-- Like the real client, a name works only for items in the cache.
 		GetItemInfoInstant = function(id)
+			if type(id) == "string" and not tonumber(id) then
+				for itemID, item in pairs(mock.items) do
+					if item.cached and item.name:lower() == id:lower() then
+						id = itemID
+						break
+					end
+				end
+			end
 			local item = itemOf(id)
 			if not item then
 				return nil

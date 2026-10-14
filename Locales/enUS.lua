@@ -218,6 +218,9 @@ L.EARLIER = "Earlier: %s"
 L.HELD_MORE = "... and %d more (see chat)"
 
 L.TICKER = {
+	wishloot = {
+		"{name} looted {item} ×{count} · On {owner} · {need}",
+	},
 	death = {
 		"{name} died.",
 		"{name} has fallen. Press F.",
@@ -304,3 +307,25 @@ L.AGO_YESTERDAY = "yesterday"
 L.AGO_DAYS = "%d days ago"
 L.WHEN_TODAY = "today %s"
 L.WHEN_YESTERDAY = "yesterday %s"
+L.OPT_SHOW_WISHLIST = "Banner when a wishlist item is looted"
+L.OPT_SHOW_WISHLIST_TIP = "When a LooserPiml friend loots something that is on a wishlist (yours or a friend's). Follows \"Ticker messages from friends\" too."
+L.WISH_OWNER = "%s's wishlist"
+L.WISH_OWNER_YOU = "your wishlist"
+L.WISH_STILL_NEEDED = "%d still needed"
+L.WISH_ENOUGH = "enough now"
+L.SIM_WISH_ITEM = "Medium Leather"
+L.SIM_WISH_OWNER = "Lena"
+L.WISH_ADD_LABEL = "My wishlist"
+L.WISH_INPUT_HINT = "Type an item name or shift-click an item, then the quantity."
+L.WISH_NOTE = "Everyone adds only their own wishes; all friends can see them."
+L.WISH_ADDED = "Added to your wishlist."
+L.WISH_REMOVE = "Remove"
+L.WISH_EMPTY = "No wishes yet. Add what you are looking for, and your friends see it."
+L.WISH_ERR_UNKNOWN = "Unknown item. Shift-click it, or type its exact name (the item has to be known to your client)."
+L.WISH_ERR_QUANTITY = "The quantity must be a number from 1 to 10000."
+L.WISH_ERR_FULL = "Your wishlist is full (%d items)."
+L.WISH_FOR = "for %s"
+L.WISH_FOR_YOU = "for you"
+L.WISH_AMONG_FRIENDS = "%d among friends"
+L.WISH_LOOTED_TONIGHT = "%d looted tonight"
+L.WISH_NOBODY_HAS = "no friend has it yet"

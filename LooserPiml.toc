@@ -29,6 +29,7 @@ Core\DB.lua
 Core\Log.lua
 Core\Roster.lua
 Core\Friends.lua
+Core\Timeline.lua
 Core\PlayerEvents.lua
 Core\Comm.lua
 Core\Version.lua
@@ -54,3 +55,4 @@ Modules\Stats\LeaderboardTab.lua
 Modules\Inventory\Inventory.lua
 Modules\Inventory\Items.lua
 Modules\Inventory\InventoryTab.lua
+Modules\Inventory\Wishlist.lua

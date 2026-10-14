@@ -34,6 +34,7 @@ DB.defaults = {
 	-- instead of in one module's storage. The Inventory settings section
 	-- shows the switches.
 	share = { gold = true, inventory = true },
+	timeline = {},              -- own and friends' events of the last days (Core/Timeline.lua)
 }
 
 -- DB.migrations[n] upgrades a database from schema n-1 to n. Add a new entry

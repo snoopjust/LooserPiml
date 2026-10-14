@@ -5,23 +5,28 @@
 -- Core/Friends.lua); receivers count and display them as a banner, a chat
 -- line only, or not at all (setting "Ticker messages from friends").
 --
--- Events (MVP): level up, death (with a "drowned" variant), entering and
--- leaving a dungeon or raid.
+-- Events: level up, death (with a "drowned" variant), entering and leaving
+-- a dungeon or raid, and looting an item that is on someone's wishlist
+-- (the Inventory module notices it and fires LP_WISHLIST_LOOT).
+-- Every own event and every friend's event also goes into Core/Timeline
+-- (Tonight tab).
 --
 -- Payload of a TICK message (short keys, every field optional except k):
---   k   kind: "death" | "levelup" | "enter" | "leave"
+--   k   kind: "death" | "levelup" | "enter" | "leave" | "wishloot"
 --   c   sender's class file name ("WARRIOR"), for name coloring
 --   lvl new level (levelup)
 --   dr  true if drowned (death)
 --   z   zone name (death)
 --   i   instance name, it = "party" | "raid" (enter/leave)
+--   id, n, nm, q   item ID, count, name, quality (wishloot)
+--   o, need        wishlist owner "Name-Realm", how many are still needed (wishloot)
 local _, ns = ...
 local L = ns.L
 
 local Ticker = ns:NewModule("Ticker")
 
 Ticker.MSG = "TICK"
-Ticker.KINDS = { death = true, levelup = true, enter = true, leave = true }
+Ticker.KINDS = { death = true, levelup = true, enter = true, leave = true, wishloot = true }
 Ticker.ANNOUNCED_INSTANCES = { party = true, raid = true } -- not battlegrounds/arenas/scenarios
 Ticker.MAX_TEXT = 64 -- max length of names coming from other clients
 Ticker.FRIEND_MODES = { banner = true, chat = true, off = true }
@@ -30,7 +35,7 @@ Ticker.defaults = {
 	stats = {},     -- session/all-time counters from TICK messages, see Stats.lua
 	chatLog = true, -- also print each event as a local chat line
 	-- Which messages are shown (display only: stats and broadcasting don't care)
-	show = { levelup = true, death = true, drowned = true, dungeon = true, raid = true, bossRecap = true, own = true },
+	show = { levelup = true, death = true, drowned = true, dungeon = true, raid = true, bossRecap = true, own = true, wishlist = true },
 	-- How friends' events are shown: "banner" (banner + chat line), "chat" (chat line only), "off"
 	friendsDisplay = "banner",
 	-- Banner look; point = { point, relativePoint, x, y } once moved
@@ -45,6 +50,8 @@ function Ticker:FilterKey(data)
 		return "levelup"
 	elseif data.k == "enter" or data.k == "leave" then
 		return data.it == "raid" and "raid" or "dungeon"
+	elseif data.k == "wishloot" then
+		return "wishlist"
 	end
 	return nil
 end
@@ -114,6 +121,19 @@ function Ticker:RegisterOptions()
 		})
 	end
 
+	-- Shown with the other inventory settings (the section is created by
+	-- whichever module registers first; AddSection is idempotent).
+	Options:AddSection("inventory", L.OPT_SECTION_INVENTORY, 35)
+	Options:Add("inventory", {
+		type = "checkbox", key = "ticker.wishlist", label = L.OPT_SHOW_WISHLIST, tooltip = L.OPT_SHOW_WISHLIST_TIP, default = true,
+		get = function()
+			return self.db.show.wishlist ~= false
+		end,
+		set = function(value)
+			self.db.show.wishlist = value and true or false
+		end,
+	})
+
 	Options:AddSection("banner", L.OPT_SECTION_BANNER, 20)
 	Options:Add("banner", {
 		type = "slider", key = "banner.hold", label = L.OPT_BANNER_HOLD, default = 4, min = 2, max = 10, step = 0.5,
@@ -176,7 +196,11 @@ function Ticker:OnEnable()
 		self.Display:OnEncounterEnd()
 	end)
 	ns.Comm:RegisterHandler(self, self.MSG, self.OnTick)
-	ns.TestMode:RegisterSim(self, { "death", "drown", "levelup", "enter", "leave" }, self.Simulate)
+	-- The Inventory module found that we looted a wished-for item.
+	ns.Events:Register(self, "LP_WISHLIST_LOOT", function(_, _, info)
+		self:OnOwnEvent("wishloot", { id = info.id, n = info.n, nm = info.nm, q = info.q, o = info.o, need = info.need })
+	end)
+	ns.TestMode:RegisterSim(self, { "death", "drown", "levelup", "enter", "leave", "wishloot" }, self.Simulate)
 	-- "/lp stats chat" (Window owns "/lp stats" and asks for the text ranking)
 	ns.Events:Register(self, "LP_PRINT_STATS", function()
 		self.Stats:PrintReport()
@@ -195,6 +219,7 @@ function Ticker:OnOwnEvent(kind, data, isTest)
 	data.c = data.c or ns.Roster:GetPlayerClass()
 	local me = ns.Roster:GetPlayerName()
 	self.Stats:Record(me, data, isTest)
+	self:AddToTimeline(me, data, isTest)
 	if self:ShouldShow(data, true) then
 		self.Display:ShowEvent(me, data, { test = isTest })
 	end
@@ -220,6 +245,16 @@ function Ticker:OnInstanceLeave(_, info)
 	if self.ANNOUNCED_INSTANCES[info.type] then
 		self:OnOwnEvent("leave", { i = info.name, it = info.type })
 	end
+end
+
+-- Real events (own and friends') go into the timeline, whatever the
+-- display settings say; simulated ones never do.
+function Ticker:AddToTimeline(sender, data, isTest)
+	if isTest then
+		return
+	end
+	local entry = self.Display:Format(sender, data)
+	ns.Timeline:Add({ s = sender, k = data.k, x = entry.text, v = entry.variant, id = data.id, n = data.n })
 end
 
 ----------------------------------------------------------------------
@@ -253,6 +288,21 @@ function Ticker:Sanitize(data)
 	if data.it == "party" or data.it == "raid" then
 		clean.it = data.it
 	end
+	if data.k == "wishloot" then
+		local function whole(v, low, high)
+			return type(v) == "number" and v == v and v >= low and v <= high and math.floor(v) or nil
+		end
+		clean.id = whole(data.id, 1, 9999999)
+		if not clean.id then
+			return nil
+		end
+		clean.n = whole(data.n, 1, 10000) or 1
+		clean.q = whole(data.q, 0, 8)
+		clean.need = whole(data.need, 0, 1000000)
+		clean.nm = cleanText(data.nm, self.MAX_TEXT)
+		local owner = type(data.o) == "string" and #data.o <= self.MAX_TEXT and data.o:find("^[^|%s]+$") and ns.Roster:Normalize(data.o)
+		clean.o = owner or nil
+	end
 	return clean
 end
 
@@ -264,6 +314,7 @@ function Ticker:OnTick(data, sender, meta)
 	end
 	-- Always counted; how (or whether) it is shown is the receiver's choice.
 	self.Stats:Record(sender, event, meta.test)
+	self:AddToTimeline(sender, event, meta.test)
 	local mode = self:GetFriendsDisplay()
 	if mode ~= "off" and self:ShouldShow(event, false) then
 		self.Display:ShowEvent(sender, event, { late = meta.late, test = meta.test, chatOnly = mode == "chat" })
@@ -288,6 +339,8 @@ function Ticker:Simulate(kind, name)
 		data = { k = "levelup", lvl = name and math.random(2, 60) or (level and level + 1 or nil) }
 	elseif kind == "enter" or kind == "leave" then
 		data = { k = kind, i = L.SIM_DUNGEON, it = "party" }
+	elseif kind == "wishloot" then
+		data = { k = "wishloot", id = 2319, n = 3, nm = L.SIM_WISH_ITEM, q = 1, o = ns.Roster:Normalize(L.SIM_WISH_OWNER), need = 7 }
 	else
 		return
 	end

@@ -505,8 +505,8 @@ end
 
 Inventory.SAMPLE = {
 	{ name = "Max", class = "WARRIOR", gold = 716000, bags = { [2589] = 40, [2318] = 12, [118] = 5 }, bank = { [2589] = 60, [2319] = 54 }, bankAgo = 3 * 86400 },
-	{ name = "Lena", class = "MAGE", gold = 1250000, bags = { [4306] = 20, [118] = 2 }, bank = {}, bankAgo = 3600 },
-	{ name = "Jo", class = "PRIEST", gold = 98000, bags = { [2140] = 1, [2589] = 8 }, bank = { [2318] = 30 } },
+	{ name = "Lena", class = "MAGE", gold = 1250000, bags = { [4306] = 20, [118] = 2 }, bank = {}, bankAgo = 3600, wishlist = { { id = 2319, n = 60 } } },
+	{ name = "Jo", class = "PRIEST", gold = 98000, bags = { [2140] = 1, [2589] = 8 }, bank = { [2318] = 30 }, wishlist = { { id = 2589, n = 200 } } },
 	{ name = "Kim", class = "ROGUE", bags = { [2319] = 6 }, bank = { [2319] = 14 }, bankAgo = 86400 },
 }
 

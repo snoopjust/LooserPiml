@@ -43,6 +43,7 @@ Display.COLORS = {
 	levelup = { 1, 0.82, 0 },
 	enter = { 0.85, 1, 0.85 },
 	leave = { 0.85, 0.85, 0.85 },
+	wishloot = { 0.9, 0.72, 0.36 },
 }
 
 -- PlaySound takes a SoundKit ID; 8959 = raid warning, 888 = level-up fanfare.
@@ -73,6 +74,7 @@ Display.ICONS = {
 	levelup = icon(1),
 	enter = icon(4),
 	leave = icon(2),
+	wishloot = icon(3),
 }
 
 -- Random variant picker; tests replace it to get deterministic output.
@@ -110,6 +112,16 @@ function Display:Format(sender, data, nameText)
 		zone = data.z or L.UNKNOWN_PLACE,
 		instance = data.i or L.UNKNOWN_PLACE,
 	}
+	if kind == "wishloot" then
+		-- Prefer the receiver's own item cache (localized name); the sender's
+		-- name (already escaped by Sanitize) is the fallback.
+		local cached = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(data.id)
+		local itemName = (type(cached) == "string" and not ns.IsSecret(cached)) and cached:gsub("|", "||") or data.nm or ("#" .. tostring(data.id))
+		values.item = "|c" .. ns.Util.QualityHex(data.q) .. itemName .. "|r"
+		values.count = tostring(data.n or 1)
+		values.owner = (not data.o or ns.Roster:IsPlayer(data.o)) and L.WISH_OWNER_YOU or L.WISH_OWNER:format(ns.Roster:ColorName(data.o))
+		values.need = (data.need or 0) > 0 and L.WISH_STILL_NEEDED:format(data.need) or L.WISH_ENOUGH
+	end
 	local text = template:gsub("{(%a+)}", values)
 	return { icon = self.ICONS[variant], text = text, variant = variant }
 end
