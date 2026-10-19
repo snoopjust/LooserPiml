@@ -19,6 +19,9 @@ Leaderboard.AWARDS = {
 	{ id = "fishFood", metric = "drowned", better = "high", tieKey = "drowned", format = "number" },
 	{ id = "goldHoarder", metric = "gold", better = "high", format = "money", snapshot = true },
 	{ id = "speedrunner", metric = "avgLevelTime", better = "low", tieKey = "levelTime", format = "duration" },
+	-- Confirmed ranked duel wins in the period (Ladder.Annotate: both sides
+	-- agree, disputed duels left out), not the claims in the aggregate.
+	{ id = "duelKing", metric = "rankedWins", better = "high", tieKey = "rankedWins", format = "number" },
 }
 
 -- Ranking list metrics (selector order).
@@ -44,6 +47,8 @@ end
 function Leaderboard.Value(participant, metric)
 	if metric == "gold" then
 		return participant.gold
+	elseif metric == "rankedWins" then
+		return participant.rankedWins
 	end
 	local agg = participant.agg
 	if not agg then
@@ -55,8 +60,11 @@ function Leaderboard.Value(participant, metric)
 	return agg.n and agg.n[metric] or nil
 end
 
+-- participant.at (values computed outside the aggregate, e.g. rankedWins)
+-- first, then the aggregate's timestamps.
 local function achievedAt(participant, tieKey)
-	local at = tieKey and participant.agg and participant.agg.at and participant.agg.at[tieKey]
+	local at = tieKey and participant.at and participant.at[tieKey]
+	at = at or (tieKey and participant.agg and participant.agg.at and participant.agg.at[tieKey])
 	return at or math.huge -- unknown: counts as "later"
 end
 

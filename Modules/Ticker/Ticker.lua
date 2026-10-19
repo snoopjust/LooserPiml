@@ -7,12 +7,15 @@
 --
 -- Events: level up, death (with a "drowned" variant), entering and leaving
 -- a dungeon or raid, and looting an item that is on someone's wishlist
--- (the Inventory module notices it and fires LP_WISHLIST_LOOT).
+-- (the Inventory module notices it and fires LP_WISHLIST_LOOT), and duels
+-- between LooserPiml friends (Stats fires LP_DUEL_RESULT; only the winner's
+-- client announces, so friends get one message per duel): ranked ones as
+-- a banner, fun ones as a chat line only (off by default).
 -- Every own event and every friend's event also goes into Core/Timeline
 -- (Tonight tab).
 --
 -- Payload of a TICK message (short keys, every field optional except k):
---   k   kind: "death" | "levelup" | "enter" | "leave" | "wishloot"
+--   k   kind: "death" | "levelup" | "enter" | "leave" | "wishloot" | "duel_ranked" | "duel_fun"
 --   c   sender's class file name ("WARRIOR"), for name coloring
 --   lvl new level (levelup)
 --   dr  true if drowned (death)
@@ -20,13 +23,15 @@
 --   i   instance name, it = "party" | "raid" (enter/leave)
 --   id, n, nm, q   item ID, count, name, quality (wishloot)
 --   o, need        wishlist owner "Name-Realm", how many are still needed (wishloot)
+--   o, oc, w, l, fl  loser "Name-Realm", loser's class, the winner's ranked
+--                    wins / losses against them, true if the loser fled (duel_*)
 local _, ns = ...
 local L = ns.L
 
 local Ticker = ns:NewModule("Ticker")
 
 Ticker.MSG = "TICK"
-Ticker.KINDS = { death = true, levelup = true, enter = true, leave = true, wishloot = true }
+Ticker.KINDS = { death = true, levelup = true, enter = true, leave = true, wishloot = true, duel_ranked = true, duel_fun = true }
 Ticker.ANNOUNCED_INSTANCES = { party = true, raid = true } -- not battlegrounds/arenas/scenarios
 Ticker.MAX_TEXT = 64 -- max length of names coming from other clients
 Ticker.FRIEND_MODES = { banner = true, chat = true, off = true }
@@ -35,7 +40,8 @@ Ticker.defaults = {
 	stats = {},     -- session/all-time counters from TICK messages, see Stats.lua
 	chatLog = true, -- also print each event as a local chat line
 	-- Which messages are shown (display only: stats and broadcasting don't care)
-	show = { levelup = true, death = true, drowned = true, dungeon = true, raid = true, bossRecap = true, own = true, wishlist = true },
+	-- duelRanked: banner after a ranked duel; duelFun: chat line after a fun duel (off by default)
+	show = { levelup = true, death = true, drowned = true, dungeon = true, raid = true, bossRecap = true, own = true, wishlist = true, duelRanked = true, duelFun = false },
 	-- How friends' events are shown: "banner" (banner + chat line), "chat" (chat line only), "off"
 	friendsDisplay = "banner",
 	-- Banner look; point = { point, relativePoint, x, y } once moved
@@ -52,6 +58,10 @@ function Ticker:FilterKey(data)
 		return data.it == "raid" and "raid" or "dungeon"
 	elseif data.k == "wishloot" then
 		return "wishlist"
+	elseif data.k == "duel_ranked" then
+		return "duelRanked"
+	elseif data.k == "duel_fun" then
+		return "duelFun"
 	end
 	return nil
 end
@@ -108,10 +118,12 @@ function Ticker:RegisterOptions()
 		{ "raid", L.OPT_SHOW_RAID },
 		{ "bossRecap", L.OPT_SHOW_BOSS_RECAP, L.OPT_SHOW_BOSS_RECAP_TIP },
 		{ "own", L.OPT_SHOW_OWN },
+		{ "duelRanked", L.OPT_SHOW_DUEL_RANKED, L.OPT_SHOW_DUEL_RANKED_TIP },
+		{ "duelFun", L.OPT_SHOW_DUEL_FUN, L.OPT_SHOW_DUEL_FUN_TIP, false },
 	}) do
 		local key = entry[1]
 		Options:Add("ticker", {
-			type = "checkbox", key = "ticker." .. key, label = entry[2], tooltip = entry[3], default = true,
+			type = "checkbox", key = "ticker." .. key, label = entry[2], tooltip = entry[3], default = entry[4] ~= false,
 			get = function()
 				return self.db.show[key] ~= false
 			end,
@@ -199,6 +211,16 @@ function Ticker:OnEnable()
 	-- The Inventory module found that we looted a wished-for item.
 	ns.Events:Register(self, "LP_WISHLIST_LOOT", function(_, _, info)
 		self:OnOwnEvent("wishloot", { id = info.id, n = info.n, nm = info.nm, q = info.q, o = info.o, need = info.need })
+	end)
+	-- A duel between LooserPiml friends ended (Stats). Only the winner
+	-- announces it, so friends of both get one message, and the loser gets
+	-- it as a friend's event.
+	ns.Events:Register(self, "LP_DUEL_RESULT", function(_, _, info)
+		if info.won then
+			self:OnOwnEvent(info.ranked and "duel_ranked" or "duel_fun", {
+				o = info.o, oc = info.oc, w = info.rw, l = info.rl, fl = info.fled or nil,
+			}, info.test)
+		end
 	end)
 	ns.TestMode:RegisterSim(self, { "death", "drown", "levelup", "enter", "leave", "wishloot" }, self.Simulate)
 	-- "/lp stats chat" (Window owns "/lp stats" and asks for the text ranking)
@@ -288,10 +310,25 @@ function Ticker:Sanitize(data)
 	if data.it == "party" or data.it == "raid" then
 		clean.it = data.it
 	end
-	if data.k == "wishloot" then
-		local function whole(v, low, high)
-			return type(v) == "number" and v == v and v >= low and v <= high and math.floor(v) or nil
+	local function whole(v, low, high)
+		return type(v) == "number" and v == v and v >= low and v <= high and math.floor(v) or nil
+	end
+	local function name(v)
+		return type(v) == "string" and #v <= self.MAX_TEXT and v:find("^[^|%s]+$") and ns.Roster:Normalize(v) or nil
+	end
+	if data.k == "duel_ranked" or data.k == "duel_fun" then
+		clean.o = name(data.o)
+		if not clean.o then
+			return nil
 		end
+		if type(data.oc) == "string" and data.oc:match("^[A-Z]+$") and #data.oc <= 20 then
+			clean.oc = data.oc
+		end
+		clean.w = whole(data.w, 0, 1000000) or 0
+		clean.l = whole(data.l, 0, 1000000) or 0
+		clean.fl = data.fl == true or nil
+	end
+	if data.k == "wishloot" then
 		clean.id = whole(data.id, 1, 9999999)
 		if not clean.id then
 			return nil
@@ -300,8 +337,7 @@ function Ticker:Sanitize(data)
 		clean.q = whole(data.q, 0, 8)
 		clean.need = whole(data.need, 0, 1000000)
 		clean.nm = cleanText(data.nm, self.MAX_TEXT)
-		local owner = type(data.o) == "string" and #data.o <= self.MAX_TEXT and data.o:find("^[^|%s]+$") and ns.Roster:Normalize(data.o)
-		clean.o = owner or nil
+		clean.o = name(data.o)
 	end
 	return clean
 end

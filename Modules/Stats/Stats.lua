@@ -40,6 +40,7 @@ function Stats:OnInitialize()
 	self.Duels:RegisterOptions() -- Duels.lua
 	self:RegisterUI() -- LeaderboardTab.lua
 	self:RegisterProfilesTab() -- Profiles.lua
+	self:RegisterPvPTab() -- PvPTab.lua
 	if self.RegisterTonightTab then
 		self:RegisterTonightTab() -- Tonight.lua
 	end

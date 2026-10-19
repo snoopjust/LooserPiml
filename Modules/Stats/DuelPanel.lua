@@ -20,7 +20,7 @@ Panel.WIDTH, Panel.HEIGHT = 340, 168
 Panel.CENTER_OFFSET_Y = 140 -- above the center, where the game's dialogs are not
 
 local function opponentName(cur)
-	return ns.Roster:ColorName(cur.opponent, ns.Roster:GetClass(cur.opponent))
+	return ns.Roster:ColorName(cur.opponent, Stats.Duels.ClassOf(cur.opponent))
 end
 
 function Panel:Get()

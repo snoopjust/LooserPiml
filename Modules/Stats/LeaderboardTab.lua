@@ -26,6 +26,7 @@ Tab.AWARD_LABELS = {
 	fishFood = L.AWARD_FISH_FOOD,
 	goldHoarder = L.AWARD_GOLD_HOARDER,
 	speedrunner = L.AWARD_SPEEDRUNNER,
+	duelKing = L.AWARD_DUEL_KING,
 }
 -- Raid target icons and the gold coin exist in every client (raid icons
 -- confirmed in-game; gold coin TODO(verify in-game)).
@@ -34,7 +35,10 @@ Tab.AWARD_ICONS = {
 	fishFood = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_6",
 	goldHoarder = "Interface\\MoneyFrame\\UI-GoldIcon",
 	speedrunner = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1",
+	duelKing = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_7",
 }
+-- Five cards across the content width (736 px).
+Tab.CARD_WIDTH, Tab.CARD_GAP = 140, 9
 Tab.MAX_ROWS = 10
 Tab.ROW_HEIGHT = 24
 Tab.BAR_WIDTH = 300
@@ -58,8 +62,8 @@ end
 
 function Tab:CreateCard(parent, index)
 	local card = Window:CreatePanel(parent)
-	card:SetSize(176, 92)
-	card:SetPoint("TOPLEFT", (index - 1) * 184, -50)
+	card:SetSize(self.CARD_WIDTH, 92)
+	card:SetPoint("TOPLEFT", (index - 1) * (self.CARD_WIDTH + self.CARD_GAP), -50)
 	card.icon = card:CreateTexture(nil, "ARTWORK")
 	card.icon:SetSize(28, 28)
 	card.icon:SetPoint("TOPLEFT", 10, -10)
@@ -67,7 +71,7 @@ function Tab:CreateCard(parent, index)
 	card.award:SetPoint("LEFT", card.icon, "RIGHT", 8, 0)
 	card.winner = Window:CreateText(card, "GameFontHighlightLarge", THEME.text)
 	card.winner:SetPoint("TOPLEFT", 10, -48)
-	card.winner:SetWidth(156)
+	card.winner:SetWidth(self.CARD_WIDTH - 20)
 	card.value = Window:CreateText(card, "GameFontHighlightSmall", THEME.muted)
 	card.value:SetPoint("TOPLEFT", 10, -70)
 	return card

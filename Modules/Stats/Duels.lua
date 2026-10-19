@@ -62,6 +62,17 @@ Duels.SIM_FIGHT = 10 -- seconds from the request to the result in /lp sim duel
 Duels.current = nil -- the pending duel: { opponent, role, id, mine, theirs, accepted, finished, test }
 Duels.generation = 0
 
+-- Class of a friend for name coloring: from the group if grouped, else
+-- what the friends list remembered from their handshake.
+function Duels.ClassOf(name)
+	local class = ns.Roster:GetClass(name)
+	if class then
+		return class
+	end
+	local entry = ns.Friends:GetDB()[name]
+	return entry and entry.class
+end
+
 local function newId()
 	local chars = "abcdefghijklmnopqrstuvwxyz0123456789"
 	local out = {}
@@ -433,7 +444,7 @@ function Duels:Announce(result, opponent, ranked, record, won, test)
 	end
 	ns.Events:Fire("LP_DUEL_RESULT", {
 		o = opponent,
-		oc = ns.Roster:GetClass(opponent),
+		oc = Duels.ClassOf(opponent),
 		won = won,
 		fled = result == "fled" or result == "opponent_fled",
 		ranked = ranked and true or false,

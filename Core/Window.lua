@@ -3,8 +3,8 @@
 --
 -- The window is generic: modules register tabs (ns.Window:RegisterTab) and
 -- minimap-tooltip lines (ns.Window:AddTooltipProvider). Tabs now:
--- Leaderboard (Stats module) and Friends (Core/FriendsPanel.lua);
--- Profiles/PvP/Tonight come later.
+-- Leaderboard, Tonight, Profiles, PvP (Stats module), Inventory (Inventory
+-- module) and Friends (Core/FriendsPanel.lua).
 --
 -- Look (approved mockup): dark brown background, bronze borders, gold
 -- headings, class-colored names, the game's own fonts, no emoji.

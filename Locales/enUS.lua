@@ -70,7 +70,12 @@ L.OPT_TICKER_FRIENDS_OFF = "Off"
 L.OPT_SHOW_BOSS_RECAP = "Boss recap"
 L.OPT_SHOW_BOSS_RECAP_TIP = "After a boss fight, show the banners that were held during the fight. Off: they only appear in chat."
 L.OPT_SHOW_OWN = "Also show my own events"
-L.OPT_DUEL_ASK = "Ask \"ranked?\" when dueling a LooserPiml friend"
+L.OPT_SHOW_DUEL_RANKED = "Ranked duel results"
+L.OPT_SHOW_DUEL_RANKED_TIP = "A banner when a ranked duel between LooserPiml friends ends, with the ranked head to head."
+L.OPT_SHOW_DUEL_FUN = "Fun duel results"
+L.OPT_SHOW_DUEL_FUN_TIP = "A chat line (never a banner) when a duel between LooserPiml friends ends that was just for fun."
+L.DUEL_FLED_SUFFIX = " (%s fled)"
+L.OPT_DUEL_ASK ="Ask \"ranked?\" when dueling a LooserPiml friend"
 L.OPT_DUEL_ASK_TIP = "Shows a small panel next to the game's duel dialog where you both pick Ranked or Just for fun. Off: your duels always count as just for fun."
 
 L.OPT_SECTION_BANNER = "Banner"
@@ -179,6 +184,7 @@ L.AWARD_DEATH_KING = "Death King"
 L.AWARD_FISH_FOOD = "Fish Food"
 L.AWARD_GOLD_HOARDER = "Gold Hoarder"
 L.AWARD_SPEEDRUNNER = "Speedrunner"
+L.AWARD_DUEL_KING = "Duel King"
 L.NO_ONE_YET = "No one yet"
 L.YOU_SUFFIX = "(you)"
 L.OFFLINE_SUFFIX = "(offline)"
@@ -220,6 +226,12 @@ L.EARLIER = "Earlier: %s"
 L.HELD_MORE = "... and %d more (see chat)"
 
 L.TICKER = {
+	duel_ranked = {
+		"{name} won a ranked duel against {opponent}{fled} · Ranked head to head: {name} {wins} – {losses} {opponent}",
+	},
+	duel_fun = {
+		"{name} beat {opponent} in a duel{fled} (just for fun)",
+	},
 	wishloot = {
 		"{name} looted {item} ×{count} · On {owner} · {need}",
 	},
@@ -365,7 +377,8 @@ L.PROFILE_FAV_ZONE = "Favourite zone"
 L.PROFILE_PVP = "PvP"
 L.PROFILE_RANK = "Rank"
 L.PROFILE_BG_WON = "Battlegrounds won"
-L.PROFILE_DUELS = "Duels won / lost"
+L.PROFILE_RANKED_DUELS = "Ranked duels won / lost"
+L.PROFILE_DUELS = "All duels won / lost"
 L.PROFILE_SOCIAL = "Social"
 L.PROFILE_JUMPS = "Jumps"
 L.PROFILE_FOOD = "Food eaten"
@@ -373,7 +386,25 @@ L.PROFILE_GROUPED = "Time grouped with friends"
 L.PROFILE_EVENINGS = "Evenings played"
 
 -- Ranked duels ------------------------------------------------------------------
-L.DUEL_PANEL_TITLE = "LooserPiml · ranked duel?"
+L.TAB_PVP = "PvP"
+L.PVP_SUBTITLE = "Duels between LooserPiml friends"
+L.PVP_LADDER = "Duel ladder"
+L.PVP_COL_RANK = "#"
+L.PVP_COL_NAME = "Name"
+L.PVP_COL_WINS = "Wins"
+L.PVP_COL_LOSSES = "Losses"
+L.PVP_COL_RATE = "Win rate"
+L.PVP_COL_STREAK = "Streak"
+L.PVP_COL_WL = "W – L"
+L.PVP_LADDER_EMPTY = "No ranked duels yet. Duel a LooserPiml friend and both pick Ranked."
+L.PVP_HEAD_TO_HEAD = "Head to head"
+L.PVP_MATRIX_HINT = "row beat column"
+L.PVP_MODE_RANKED = "Ranked"
+L.PVP_MODE_ALL = "All duels"
+L.PVP_MATRIX_EMPTY = "No duels between your LooserPiml friends yet."
+L.PVP_DIAGONAL = "—"
+L.PVP_BATTLEGROUNDS = "Battlegrounds – coming later"
+L.DUEL_PANEL_TITLE ="LooserPiml · ranked duel?"
 L.DUEL_RECORD = "Your ranked record against %s: %d – %d"
 L.DUEL_RANKED = "Ranked"
 L.DUEL_FUN = "Just for fun"

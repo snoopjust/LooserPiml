@@ -78,10 +78,56 @@ describe("Leaderboard provider", function()
 			assert.is_nil(Leaderboard.Award({ p("Max"), p("Lena", { quests = { 3, 1 } }) }, "deathKing"))
 			assert.is_nil(Leaderboard.Award({ p("Max") }, "speedrunner"))
 			local cards = Leaderboard.HallOfFame({})
-			assert.are.equal(4, #cards)
+			assert.are.equal(5, #cards)
 			for _, card in ipairs(cards) do
 				assert.is_nil(card.winner)
 			end
+		end)
+
+		it("crowns the Duel King by confirmed ranked wins in the selected period", function()
+			local mock, ns = H.client({ testMode = true })
+			local stats = ns:GetModule("Stats")
+			local Ladder = stats.Ladder
+			local now = mock.env.GetServerTime()
+			local function duels(list)
+				local data = {}
+				for i, d in ipairs(list) do
+					local id, t = "d" .. i, d[3]
+					data[d[1]] = data[d[1]] or { r = {}, h = {} }
+					data[d[2]] = data[d[2]] or { r = {}, h = {} }
+					table.insert(data[d[1]].r, { i = id, t = t, o = d[2], w = true })
+					table.insert(data[d[2]].r, { i = id, t = t, o = d[1], w = d[4] == "disputed" })
+				end
+				return data
+			end
+			-- Max won 3 last week, Lena 2 tonight (one more disputed)
+			local tonight, lastWeek = stats.Model.DayStart(now) + 60, now - 10 * 86400
+			local data = duels({
+				{ "Max", "Lena", lastWeek }, { "Max", "Lena", lastWeek + 1 }, { "Max", "Jo", lastWeek + 2 },
+				{ "Lena", "Jo", tonight }, { "Lena", "Max", tonight + 1 }, { "Lena", "Jo", tonight + 2, "disputed" },
+			})
+			local function list(period)
+				local out = {}
+				for _, name in ipairs({ "Max", "Lena", "Jo" }) do
+					out[#out + 1] = { name = name, duel = data[name] }
+				end
+				Ladder.Annotate(out, stats.Model.PeriodStart(period, now))
+				return out
+			end
+			local allTime = Leaderboard.Award(list("all"), "duelKing")
+			assert.are.equal("Max", allTime.name)
+			assert.are.equal(3, allTime.value)
+			local tonightKing = Leaderboard.Award(list("tonight"), "duelKing")
+			assert.are.equal("Lena", tonightKing.name)
+			assert.are.equal(2, tonightKing.value) -- the disputed one doesn't count
+			assert.is_nil(Leaderboard.Award({ { name = "Kim", rankedWins = 0 } }, "duelKing"))
+			-- tie on wins: whoever got there first
+			local tie = { { name = "Zed", rankedWins = 2, at = { rankedWins = 50 } }, { name = "Abe", rankedWins = 2, at = { rankedWins = 90 } } }
+			assert.are.equal("Zed", Leaderboard.Award(tie, "duelKing").name)
+			-- sample friends: the Hall of Fame card has a winner
+			stats:FillSampleFriends()
+			local king = Leaderboard.Award(stats:GetParticipants("all"), "duelKing")
+			assert.are.equal("Max-TestRealm", king.name)
 		end)
 	end)
 

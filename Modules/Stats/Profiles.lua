@@ -203,6 +203,7 @@ function Profiles.Sections(profile)
 		{ title = L.PROFILE_PVP, rows = {
 			{ L.PROFILE_RANK, num(honorLevel) },
 			{ L.PROFILE_BG_WON, num(n.bgWon) },
+			{ L.PROFILE_RANKED_DUELS, pair(n.rankedWon, n.rankedLost) },
 			{ L.PROFILE_DUELS, pair(n.duelsWon, n.duelsLost) },
 		} },
 		{ title = L.PROFILE_SOCIAL, rows = {

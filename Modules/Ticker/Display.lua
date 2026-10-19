@@ -44,6 +44,8 @@ Display.COLORS = {
 	enter = { 0.85, 1, 0.85 },
 	leave = { 0.85, 0.85, 0.85 },
 	wishloot = { 0.9, 0.72, 0.36 },
+	duel_ranked = { 1, 0.6, 0.2 },
+	duel_fun = { 0.85, 0.85, 0.85 },
 }
 
 -- PlaySound takes a SoundKit ID; 8959 = raid warning, 888 = level-up fanfare.
@@ -75,6 +77,8 @@ Display.ICONS = {
 	enter = icon(4),
 	leave = icon(2),
 	wishloot = icon(3),
+	duel_ranked = icon(7),
+	duel_fun = icon(5),
 }
 
 -- Random variant picker; tests replace it to get deterministic output.
@@ -121,6 +125,11 @@ function Display:Format(sender, data, nameText)
 		values.count = tostring(data.n or 1)
 		values.owner = (not data.o or ns.Roster:IsPlayer(data.o)) and L.WISH_OWNER_YOU or L.WISH_OWNER:format(ns.Roster:ColorName(data.o))
 		values.need = (data.need or 0) > 0 and L.WISH_STILL_NEEDED:format(data.need) or L.WISH_ENOUGH
+	elseif kind == "duel_ranked" or kind == "duel_fun" then
+		values.opponent = ns.Roster:ColorName(data.o, data.oc)
+		values.wins = tostring(data.w or 0)
+		values.losses = tostring(data.l or 0)
+		values.fled = data.fl and L.DUEL_FLED_SUFFIX:format(values.opponent) or ""
 	end
 	local text = template:gsub("{(%a+)}", values)
 	return { icon = self.ICONS[variant], text = text, variant = variant }
@@ -147,6 +156,9 @@ end
 -- back), chatOnly (no banner, no sound)
 function Display:ShowEvent(sender, data, opts)
 	opts = opts or {}
+	if data.k == "duel_fun" then
+		opts.chatOnly = true -- fun duels never get a banner
+	end
 	if (data.k == "enter" or data.k == "leave") and data.i then
 		return self:Collect(sender, data, opts)
 	end
