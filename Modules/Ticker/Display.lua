@@ -77,8 +77,8 @@ Display.ICONS = {
 	enter = icon(4),
 	leave = icon(2),
 	wishloot = icon(3),
-	duel_ranked = icon(7),
-	duel_fun = icon(5),
+	duel_ranked = icon(7), -- cross; 7 and 5: TODO(verify in-game) like the others
+	duel_fun = icon(5),    -- moon
 }
 
 -- Random variant picker; tests replace it to get deterministic output.

@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.2.0-beta.3 (2026-10-19, pre-release)
+
+Third beta: ranked duels, for the duel test with a friend this weekend.
+
+### Added
+
+- **Ranked duels** between LooserPiml friends, grouped or not. When you
+  duel a connected LooserPiml friend, a small panel "LooserPiml · ranked
+  duel?" appears below the game's duel dialog on both sides, with your
+  ranked record against them and two buttons: **Ranked** and **Just for
+  fun**. The duel counts as ranked only if both pick Ranked. You still
+  accept or decline in the game's own dialog: LooserPiml never does that
+  for you. With anyone else there is no panel and the duel is a normal
+  one. Fleeing counts as a loss.
+- **PvP** (new tab): the duel ladder (ranked only: wins, losses, win rate,
+  streak like W4 / L2) and a head to head matrix (who beat whom how often,
+  Ranked or All duels, W – L per player). Battlegrounds come later.
+  A ranked duel counts once both duelists' clients agree on the result;
+  if they don't, it's marked disputed and left out.
+- Banner after a ranked duel for all your connected friends: "Lootius won
+  a ranked duel against Nerdalot · Ranked head to head: Lootius 5 – 1
+  Nerdalot". Fun duels can show a chat line instead.
+- Hall of Fame: **Duel King** (most ranked duel wins in the period).
+- Profiles › PvP: "Ranked duels won / lost" and "All duels won / lost".
+- Settings › Ticker messages: "Ranked duel results" (banner, on), "Fun
+  duel results" (chat line, off), "Ask "ranked?" when dueling a
+  LooserPiml friend" (on).
+- Test mode: `/lp sim duel <name> ranked|fun|fled`.
+
 ## v0.2.0-beta.2 (2026-10-14, pre-release)
 
 Second beta, for the test with a friend before the Forever beta ends.

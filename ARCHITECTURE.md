@@ -14,7 +14,9 @@ friend, wherever they are; their clients check it and show it (banner, chat
 line only, or not at all, as each friend prefers). The **Stats** module records much more of
 the own character's life (gold, loot, quests, duels, ...) in a local log,
 condenses it into totals and shares only those totals with friends, which
-feeds the **Leaderboard**, **Profiles** and **Tonight** tabs. The
+feeds the **Leaderboard**, **Profiles**, **Tonight** and **PvP** tabs
+(the PvP tab's duel ladder comes from **ranked duels**: both duelists
+pick "Ranked" in a small panel, and each records only its own result). The
 **Inventory** module shares bags, bank and gold on hand, plus everyone's
 own **wishlist**, for the Friends' inventory tab. LooserPiml talks **only to players on the
 explicit, mutual LooserPiml friends list** (see "Communication: only with
@@ -29,7 +31,7 @@ Options › AddOns › LooserPiml.
 ```mermaid
 flowchart TB
     Ticker["Ticker module<br/>Ticker.lua · Stats.lua · Display.lua"]
-    Stats["Stats module<br/>log · collectors · model · sync<br/>leaderboard · profiles · tonight tabs"]
+    Stats["Stats module<br/>log · collectors · model · sync · ranked duels<br/>leaderboard · profiles · tonight · PvP tabs"]
     Inventory["Inventory module<br/>bags · bank · gold · wishlists<br/>Friends' inventory tab"]
     Future["Inventory · Professions · Bets<br/>(planned)"]
     Core["Core services<br/>Events · DB · Log · Roster · Friends · Timeline · PlayerEvents<br/>Comm · Version · TestMode · Slash · Options · Window · FriendsPanel"]
@@ -82,9 +84,13 @@ module removable.
 | `Modules/Stats/Collectors.lua` | Game events → `Record()`: death, level-up (played time), quests, instances, boss kills/wipes, zones, flights, hearthstone, jumps (post-hook), food/drink | `EnableCollectors`, `PostHook`, `OnJump` |
 | `Modules/Stats/Money.lua` | Every gold change with a source from hints (quest, repair, flight, mail/AH mail) or the open window | `ClassifyMoney`, `OnPlayerMoney` |
 | `Modules/Stats/Loot.lua` | Own rare+ loot (quality from the item API or the link), crafted items, gathering (herb/ore/skinning told apart by the cast before the loot window, fishing), chests as a separate counter, skill-ups, parsed from loot/skill messages via the client's own format strings | `ParseLootMessage`, `ItemQuality`, `NoteCast`, `OnLootOpened` |
-| `Modules/Stats/PvP.lua` | Duels (own only, opponent runs LooserPiml?), battleground joined/finished/deserted with own scoreboard row after the match, honor snapshots | `ParseDuel`, `OnPvPMatchComplete`, `ReadOwnScore` |
-| `Modules/Stats/Sync.lua` | Sends own aggregates to connected friends (when a handshake arrives, after changes; ≤ 1 per 30 s; off with "share my stats"), caches friends' aggregates with last-seen (`friendStats`), staleness of tonight/week, participants for the leaderboard (friends who answered a handshake), sample friends in test mode | `RequestBroadcast`, `OnStatsMessage`, `GetParticipants`, `FillSampleFriends` |
-| `Modules/Stats/Leaderboard.lua` | Pure data provider: Hall of Fame awards (Death King, Fish Food, Gold Hoarder by current gold, Speedrunner; earlier achiever wins ties) and ranking rows with bar fractions. "Snapshot" metrics (gold) come from the participant, not the period aggregate, and leave out whoever doesn't share them | `Value`, `Award`, `HallOfFame`, `Ranking`, `Format` |
+| `Modules/Stats/PvP.lua` | Duels (own only, opponent runs LooserPiml?, ranked or not via `Duels:TakeResult`), battleground joined/finished/deserted with own scoreboard row after the match, honor snapshots | `ParseDuel`, `OnChatMsgSystem`, `OnPvPMatchComplete`, `ReadOwnScore` |
+| `Modules/Stats/Duels.lua` | Ranked duel handshake with a connected friend (DUEL messages to the opponent only, post-hooks on `StartDuel`/`AcceptDuel`/`CancelDuel`, `DUEL_REQUESTED`/`DUEL_FINISHED`), own record per opponent and own ranked duels (with the shared duel id), duel data for STATS (`ForSync`, `Clean`), `LP_DUEL_RESULT` for the Ticker, `/lp sim duel`, sample duels | `OnDuelRequested`, `OnStartDuel`, `OnMessage`, `Pick`, `TakeResult`, `RecordResult`, `Announce`, `ForSync`, `Clean` |
+| `Modules/Stats/DuelPanel.lua` | The "LooserPiml · ranked duel?" panel: below Blizzard's duel dialog (only anchored to it) or near the center; Ranked / Just for fun buttons, record, note, status line | `Open`, `Anchor`, `Refresh`, `StatusText` |
+| `Modules/Stats/Sync.lua` | Sends own aggregates (+ duel data) to connected friends (when a handshake arrives, after changes; ≤ 1 per 30 s; off with "share my stats"), caches friends' aggregates with last-seen (`friendStats`), staleness of tonight/week, participants for the leaderboard (friends who answered a handshake, annotated with confirmed ranked wins per period), sample friends in test mode | `RequestBroadcast`, `OnStatsMessage`, `GetParticipants`, `FillSampleFriends` |
+| `Modules/Stats/Leaderboard.lua` | Pure data provider: Hall of Fame awards (Death King, Fish Food, Gold Hoarder by current gold, Speedrunner, Duel King by confirmed ranked wins; earlier achiever wins ties) and ranking rows with bar fractions. "Snapshot" metrics (gold) come from the participant, not the period aggregate, and leave out whoever doesn't share them | `Value`, `Award`, `HallOfFame`, `Ranking`, `Format` |
+| `Modules/Stats/Ladder.lua` | Pure duel ladder: merges both duelists' ranked duels by id (confirmed / disputed / one-sided), ladder rows (wins, losses, win rate, streak), head to head matrix (Ranked / All duels, heat levels), confirmed wins per period for Duel King | `Merge`, `Rows`, `Totals`, `Annotate`, `Matrix` |
+| `Modules/Stats/PvPTab.lua` | The PvP tab: duel ladder, head to head matrix with the Ranked / All duels toggle, battleground placeholder; frame code only | `Create`, `Refresh` |
 | `Modules/Stats/LeaderboardTab.lua` | Leaderboard tab (period selector, Hall of Fame cards, metric selector, ranking rows with bars) and the stats lines of the minimap tooltip; frame code only | `Create`, `Refresh`, `FillTooltip` |
 | `Modules/Stats/Profiles.lua` | Profile extras sent with STATS (professions, favourite zone, evenings played), the pure profile → sections mapping ("—" for missing data) and the Profiles tab | `GetProfiles`, `Profiles.Sections`, `CleanProfileExtras` |
 | `Modules/Stats/Tonight.lua` | Tonight tab (recap card, KPI tiles, timeline) and the one-time "Last evening" popup | `Tonight.Recap`, `Tonight.Totals`, `CheckEveningRecap`, `ShowEveningRecap` |
@@ -122,7 +128,7 @@ login.
 | 8–19 | `Core\Events` → `DB` → `Log` → `Roster` → `Friends` → `PlayerEvents` → `Comm` → `Version` → `TestMode` → `Slash` → `Options` → `Window` → `FriendsPanel` | Registration order = initialization order. `DB` must initialize before `Log` reads the debug flag and before any module asks for storage. `Friends` needs `Roster`; `FriendsPanel` uses `Window`'s widget helpers at load time |
 | 16 | `Modules\Ticker\Ticker.lua` | Creates the module with `ns:NewModule("Ticker")` |
 | 17–18 | `Stats.lua`, `Display.lua` | Attach to that module (`ns:GetModule("Ticker")`), so they must come after it |
-| … | `Modules\Stats\Stats.lua` → `Model` … `LeaderboardTab` → `Profiles` → `Tonight` | The same pattern: the module file first, the files that attach to it after |
+| … | `Modules\Stats\Stats.lua` → `Model` → `Collectors` → `Money` → `Loot` → `PvP` → `Duels` → `DuelPanel` → `Sync` → `Leaderboard` → `Ladder` → `LeaderboardTab` → `Profiles` → `PvPTab` → `Tonight` | The same pattern: the module file first, the files that attach to it after. They only reference each other at run time (after login), so the order among them only matters for readability |
 | … | `Modules\Inventory\Inventory.lua` → `Items` → `InventoryTab` → `Wishlist` | `Wishlist` adds its view to the tab table created by `InventoryTab` |
 | | `Core\Timeline.lua` (after `Friends`) | Core service: the Ticker adds to it, Stats and Inventory read it |
 
@@ -280,6 +286,62 @@ flowchart LR
   (`prof`, `fav`, `eve`); `Profiles.Sections` maps them to labels and
   values and shows "—" where nothing is known.
 
+## Ranked duels: from "ranked?" to the ladder
+
+The duel result itself was already recorded (`PvP.lua`, the client's
+localized `DUEL_WINNER_*` strings). Stage C adds the handshake that makes
+a duel "ranked" and the ladder. Grouping plays no role: duels happen
+between friends standing next to each other, grouped or not.
+
+```mermaid
+sequenceDiagram
+    participant A as Challenger (Lootius)
+    participant B as Challenged (Nerdalot)
+    participant F as Other friends (Lena)
+    A->>A: StartDuel post-hook: panel (no id yet)
+    Note over B: DUEL_REQUESTED("Lootius"): game dialog + our panel below it
+    B->>A: DUEL ask {i = id} (whisper to A only)
+    A->>A: adopts the id (opens the panel if the hook missed it)
+    A->>B: DUEL pick {p = "ranked"}
+    B->>A: DUEL pick {p = "ranked"}
+    Note over B: player clicks Accept in the game's dialog
+    B->>A: DUEL start (AcceptDuel post-hook); panels close after the 3 s countdown
+    Note over A,B: fight; both see "Lootius has defeated Nerdalot in a duel"
+    A->>A: TakeResult: ranked (both picked Ranked), record {id, won}
+    B->>B: TakeResult: ranked, record {id, lost}
+    A->>B: TICK duel_ranked (the winner announces)
+    A->>F: TICK duel_ranked
+    A->>F: STATS with duel data (≤ 30 s later)
+    B->>F: STATS with duel data
+    Note over F: Ladder.Merge: both records name each other, one won → confirmed
+```
+
+1. **Who gets a panel**: only a duel with a *connected* LooserPiml friend
+   (listed, answered the handshake, online). Anyone else: no panel, no
+   message, a normal duel. With "Ask ranked?" off, the client answers
+   `p = "off"` so the other panel says so.
+2. **Ranked** = both picked Ranked before the result line. The pending
+   choice ends with the result, on decline/withdraw (`CancelDuel` post-hook,
+   `DUEL_FINISHED` before the start, or a `close` message), or 5 s after
+   `DUEL_FINISHED` if no result line comes.
+3. **Records** (own character): per opponent `w, l, rw, rl` and a ranked
+   streak; plus the own ranked duels `{ id, t, opponent, won }` (200 kept).
+   Fled counts as a loss for whoever fled.
+4. **Sync**: STATS carries the newest 60 ranked duels and the per-opponent
+   record, both only for opponents on the friends list (about 1.1 KB, 5
+   chunks, with 60 duels).
+5. **Merge** (`Ladder.lua`, pure): a duel counts once both sides agree
+   (each record names the other, exactly one says won). Both claim the win
+   (or the loss): **disputed**, left out. Only one side has it: left out
+   until the other side's data says the same. The ladder and the matrix
+   therefore only pair players who are both participants on this screen.
+6. **Show**: the winner's client sends one `duel_ranked` (or `duel_fun`)
+   TICK, so every friend gets one banner/chat line per duel; the PvP tab
+   shows the ladder (sorted by ranked wins, then win rate) and the head to
+   head matrix (Ranked: confirmed duels; All duels: each row player's own
+   record, or the opponent's if the row player sent none); Duel King uses
+   confirmed ranked wins in the selected period.
+
 ## Settings and window
 
 `Core/Options` is a registry. Ticker, Stats, TestMode and Window each add
@@ -321,7 +383,7 @@ Three pieces enforce it:
    | Scope | Used by | Goes to |
    |---|---|---|
    | `handshake` | HELLO | listed friends who are online |
-   | `friends` | TICK, STATS, INV, INVREQ, WISH, SELFTEST(_ECHO) | connected friends: listed, answered the handshake this session, online |
+   | `friends` | TICK, STATS, INV, INVREQ, WISH, SELFTEST(_ECHO), DUEL (with `to` = the opponent only) | connected friends: listed, answered the handshake this session, online |
 
 2. **Receiving** (`Comm:Receive`). A message from a sender who isn't on the
    own list is dropped before it is even decoded. That is what makes the
@@ -549,6 +611,7 @@ WoW: Forever uses Retail's (Midnight) addon rules. What that means here:
 | Throttling (per prefix, server side) | ChatThrottleLib (via AceComm), `Version.HELLO_COOLDOWN`, queue cap | Messages only on real events; compressed to few chunks; at most one HELLO per friend per 10 s |
 | No visible chat, no automation | By design; enforced by `spec/support/wow_mock.lua` | Output is `DEFAULT_CHAT_FRAME:AddMessage` + our own frames only. `RequestTimePlayed` is never called (it prints to chat); played time comes from our own session timer |
 | Protected functions we want to observe (`JumpOrAscendStart`) | `Stats:PostHook` (Collectors.lua) | `hooksecurefunc` post-hooks only: they run after Blizzard's code and can't change or block it. Never called, never replaced |
+| Duel actions are the player's (`StartDuel`, `AcceptDuel`, `CancelDuel`, `ForfeitDuel`, the duel dialog) | `Duels.lua`, `DuelPanel.lua` | Post-hooks on `StartDuel`/`AcceptDuel`/`CancelDuel` only, to notice what the player did. Never called; Blizzard's dialog is never clicked or hidden, our panel is only anchored below it. The test mock records any such call outside a simulated player action and fails every spec on it |
 | Chat payloads secret during chat lockdown (`CHAT_MSG_SKILL`, `CHAT_MSG_SYSTEM`) | `Util.MatchFormat` | Secret text is never matched; the skill-up or duel is simply not recorded |
 | Spell casts secret while restricted (`UNIT_SPELLCAST_SUCCEEDED`) | `Stats:OnSpellcastSucceeded`, `Stats:NoteCast` | Secret spell ID: hearthstone/food/drink not counted, and the next loot window is neither gathering nor a chest |
 | PvP scoreboard secret during an active match (`C_PvP.GetScoreInfo`) | `PvP.lua` | Read only after `PVP_MATCH_COMPLETE`; every value checked, secret ones dropped |
@@ -572,5 +635,8 @@ case), `H.group` friends in a party. Every test checks every single
 `SendAddonMessage` call (`H.checkRecipients`): it must be a WHISPER to a
 listed friend, so no code path can quietly use a group channel or reach a
 player who isn't listed.
+`H.checkClients` also fails a test if the addon itself called a duel
+action or hid/clicked Blizzard's duel dialog (`mock.gameActions`).
 `ticker_spec.lua` → "two clients end to end" walks the whole diagram above;
-`friends_spec.lua` covers the communication rule.
+`friends_spec.lua` covers the communication rule; `duels_spec.lua`,
+`ladder_spec.lua` and `pvp_spec.lua` the ranked duels.

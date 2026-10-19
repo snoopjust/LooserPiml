@@ -59,6 +59,9 @@ Covered:
 | Wishlist: add by name / link / ID, quantity validation, remove; shift-click link into the box (post-hook); sync to friends who are not grouped; received lists stored under the sender only and never editable; "N among friends" (green), "looted tonight", "no friend has it yet"; wishlist loot banner (own wish, friend's wish), banner toggle, chat-line-only mode, unrelated loot ignored | `wishlist_spec.lua` |
 | Profiles: sections mapping incl. "—" for missing fields (older friends), extras synced between friends who are not grouped, hostile extras, "first to die in a dungeon", played time counted quietly, tab list + selection | `profiles_spec.lua` |
 | Tonight: KPIs and timeline with friends who are not grouped, 06:00 boundary, timeline across reload, 7-day pruning, evening recap once per evening (local only), recap off, no recap after an empty evening | `tonight_spec.lua` |
+| Ranked duel handshake between friends who are not grouped: panel on both sides (below the game's dialog for the challenged player), both Ranked → ranked (shared duel id, records on both sides), one Fun → not ranked, no answer → not ranked, fled = loss, streak per opponent, decline closes both panels and drops the choice, choice expires after the duel ends, the challenger's panel opens from the friend's ask if the hook missed it, non-friend or offline opponent → no panel and no message, the choice goes only to the opponent (whisper), "Ask ranked?" off, `/lp sim duel`; **no duel action (StartDuel/AcceptDuel/CancelDuel/ForfeitDuel) is ever called by LooserPiml and Blizzard's dialog is never hidden or clicked** (also checked after every spec) | `duels_spec.lua` |
+| Ladder: merge of both sides (confirmed, disputed, one-sided), sort by wins then win rate, streaks, head to head matrix Ranked / All duels (incl. a friend without duel data), sync between three friends who are not grouped, disputed duel left out, only listed opponents sent, hostile payloads, STATS size with 60 ranked duels, sample duels | `ladder_spec.lua` |
+| Ranked duel banner to all connected friends (one per duel, the loser sends nothing), "fled" text, fun duels as chat line only (setting, default off), "Ranked duel results" off, sanitizing, `/lp sim duel` banner; PvP tab ladder/matrix/toggle/placeholder/empty hints, tab order; the three duel settings and defaults; Duel King per period (`leaderboard_spec.lua`) | `pvp_spec.lua` |
 | Window open/ESC/toggle/position, tabs (Leaderboard first, Friends last), leaderboard contents and selectors, minimap button clicks, tooltip lines, minimap hide/show, Addon Compartment callbacks, footer version status | `window_spec.lua` |
 
 ---
@@ -204,7 +207,19 @@ hidden addon messages. Everything with a friend is in section 3.
 **Gold**
 - [ ] Leaderboard › Gold: rows read "71g 60s right now"; Gold Hoarder card with "right now".
 
-## 3. Two players: you and one friend (about 45 minutes)
+### 2.9 Stage C1: ranked duels (solo)
+
+- [ ] `/lp test on`, `/lp sim duel Max ranked`: a small panel "LooserPiml · ranked duel?" appears above the screen center with "[test] Your ranked record against Max: 0 – 0", buttons **Ranked** and **Just for fun**, the note "Counts as ranked only if both pick Ranked. …" and the status "Nobody picked yet." About 1 s later: "Max picked Ranked · your turn." 📸
+- [ ] Click **Ranked**: the button turns bronze, status "You both picked Ranked: this duel counts!". After about 8 s the panel closes; after 10 s a banner "[test] … <you> won a ranked duel against Max · Ranked head to head: <you> 1 – 0 Max". 📸
+- [ ] `/lp sim duel Lena fun`: Lena picks Just for fun ("Lena picked Just for fun · …"); no banner at the end. Settings › Ticker messages › "Fun duel results" on and again: a chat line "… beat Lena in a duel (just for fun)", still no banner.
+- [ ] `/lp sim duel Jo fled`: the banner ends with "(Jo fled)".
+- [ ] The panel's buttons do nothing else: no duel request, no dialog, nothing in chat. No `[Blocked action]` line.
+- [ ] Settings › Testing › "Fill with sample friends", then the **PvP** tab: subtitle "Duels between LooserPiml friends", ladder #1 Max 6 / 3 / 67 % / W3 … #4 Kim; head to head matrix with "—" on the diagonal, highlighted high values and a "W – L" column; "Ranked" / "All duels" switch the numbers; "Battlegrounds – coming later" at the bottom. 📸
+- [ ] Leaderboard: a fifth card **Duel King** (Max with sample friends, "All time"). Profiles › PvP: "Ranked duels won / lost", "All duels won / lost".
+- [ ] Settings › Ticker messages: "Ranked duel results" (on), "Fun duel results" (off), "Ask "ranked?" when dueling a LooserPiml friend" (on).
+- [ ] A duel with a stranger (anyone not on your list): no panel at all; the duel is recorded as a normal duel (`/lp debug on`: "Stats: duel recorded").
+
+## 3. Two players: you and one friend (about 60 minutes)
 
 Order: install, add each other, **not grouped first** (that's the normal
 case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
@@ -214,10 +229,10 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 📸 and send them to me together with anything that looks wrong.
 
 ### 3.1 Install the beta (both, 5 min)
-- [ ] Your friend installs **v0.2.0-beta.2** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
+- [ ] Your friend installs **v0.2.0-beta.3** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
 - [ ] You either use the same beta or stay on the dev junction (`dev`). With `dev`, version warnings don't appear (dev builds are never compared); that's correct.
 - [ ] In-game, character select › AddOns: LooserPiml is listed and enabled (tick "Load out of date AddOns" if needed). No Lua error on login.
-- [ ] `/lp version` on the friend's side shows `v0.2.0-beta.2`. 📸 WowUp's addon list with the version, and the `/lp version` line.
+- [ ] `/lp version` on the friend's side shows `v0.2.0-beta.3`. 📸 WowUp's addon list with the version, and the `/lp version` line.
 
 ### 3.2 Add each other (both, 5 min)
 - [ ] **WoW friends**: Social (O) › Add Friend, in both directions. Each sees the other as online.
@@ -250,7 +265,24 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 - [ ] Debug log (`/lp log 30`) on the dying player's side: "Holding TICK message (encounter)", later "Flushed". If you can, `/dump C_ChatInfo.InChatMessagingLockdown()` during the fight (macro it before the pull; TODO #6).
 - [ ] Leave the dungeon together: one combined "left" banner.
 
-### 3.5 Afterwards
+### 3.5 Ranked duels (15 min, not grouped)
+
+Duel each other out in the open world (no group needed). One of you is
+the **challenger** (unit menu › Duel, or `/duel` with the friend
+targeted), the other the **challenged** (gets the game's dialog).
+
+- [ ] **Both Ranked**: challenge. The challenged sees the game's duel dialog and the LooserPiml panel **right below it**; the challenger sees the panel near the screen center. Both: "Your ranked record against <friend>: 0 – 0". Both click Ranked: "You both picked Ranked: this duel counts!" on both sides. 📸 both screens with the panel (the challenged one with the game's dialog).
+- [ ] The challenged accepts **in the game's dialog**. Both panels stay for the countdown (about 3 s) and then close. LooserPiml never accepted, declined or closed the game's dialog on its own.
+- [ ] Fight it out. The winner sees "<winner> won a ranked duel against <loser> · Ranked head to head: <winner> 1 – 0 <loser>", the loser sees the same banner. 📸 the banner.
+- [ ] Within about 30 s: PvP tab on both sides shows the duel on the ladder (1 – 0 / 0 – 1, W1 / L1) and a 1 in the matrix; Profiles › PvP "Ranked duels won / lost" 1 / 0. Leaderboard › Tonight: Duel King = the winner. 📸 the PvP tab.
+- [ ] **One Fun**: next duel, one picks Ranked, the other Just for fun: "… picked Just for fun · this duel doesn't count for the ladder." No banner after the duel (unless "Fun duel results" is on: chat line only). Ladder unchanged; "All duels" in the matrix goes up.
+- [ ] **Flee**: a ranked duel where one of you runs out of the duel area until the game ends it: the banner says "(<loser> fled)", the one who fled gets the loss on the ladder.
+- [ ] **Decline**: challenge again, both pick Ranked, the challenged clicks **Decline** in the game's dialog: both panels close at once. Then a duel without picking anything: just for fun, nothing on the ladder.
+- [ ] **No answer**: only the challenger picks Ranked, the challenged picks nothing and accepts: not ranked.
+- [ ] Settings › "Ask "ranked?" when dueling a LooserPiml friend" off on one side: that side sees no panel; the other side's panel says "<name> doesn't ask for ranked duels · just for fun." On again.
+- [ ] `/lp log 30` on both sides: "Duel with … closed (result)" after each duel, no `[warn]`, no `blocked`/`forbidden`. Note the order of `DUEL_FINISHED` and the result line if you see it (TODO #65).
+
+### 3.6 Afterwards
 - [ ] `/lp log 50` on both sides. Look for `[warn]`, `[error]`, `blocked`, `forbidden`. 📸 if there is anything.
 - [ ] Send me the screenshots, the self-test lines and anything odd; I'll write the results into STATUS.md.
 
@@ -321,4 +353,11 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 | 60 | Inside a dungeon, a friend's death message names the instance as its zone (for "first to die in a dungeon") | Section 3.4 | |
 | 61 | `GetProfessions`/`GetProfessionInfo` return name and skill level (profile professions) | Section 2.8 (profiles) | |
 | 62 | The evening recap window appears on the first login after 06:00 and only once | Section 2.8 (tonight, next day) | |
+| 63 | `DUEL_REQUESTED` fires on the challenged side with the challenger's name ("Name" on the own realm), not secret | Section 3.5 (panel opens on the challenged side) | |
+| 64 | Post-hooks on `StartDuel` (unit menu "Duel", `/duel`; argument unit token or name), `AcceptDuel` and `CancelDuel` (dialog buttons) fire and cause no blocked action | Section 3.5 (challenger's panel opens at once, not only after the friend's ask; panels close on accept/decline) | |
+| 65 | `DUEL_FINISHED` fires on decline, withdraw, timeout and after the duel; it comes within 5 s of the result line (`RESULT_GRACE`), in either order | Section 3.5, debug log | |
+| 66 | The duel countdown after accepting is about 3 s (`Duels.COUNTDOWN`, panel close) | Section 3.5 | |
+| 67 | `StaticPopup_FindVisible("DUEL_REQUESTED")` returns the game's duel dialog and our panel can be anchored below it | Section 3.5 (panel right below the dialog) | |
+| 68 | The game withdraws an unanswered duel request by itself (with `DUEL_FINISHED`); our 120 s safety net is never needed | Section 3.5 (let a request run out once) | |
+| 69 | Raid target icons 7 (cross) and 5 (moon) render in the duel banner / chat line | Section 2.9 | |
 | 54 | The GitHub release of a `-beta` tag is marked "Pre-release", and WowUp with Default Addon Channel = Beta installs it from the URL (with Stable it picks v0.1.0) | Section 3.1 | Release marking checked on GitHub (see STATUS.md); WowUp still open |

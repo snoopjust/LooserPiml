@@ -50,6 +50,7 @@ Duels.COUNTDOWN = 3
 Duels.RESULT_GRACE = 5
 -- An unanswered request: the game withdraws it after a while by itself
 -- (DUEL_FINISHED); this is only the safety net if that event is missed.
+-- TODO(verify in-game): the game's own timeout.
 Duels.REQUEST_TIMEOUT = 120
 Duels.MAX_RANKED = 200 -- own ranked duels kept
 Duels.MAX_SYNC = 60    -- ... and sent with STATS (newest first)
@@ -367,6 +368,7 @@ function Duels:OnStartDuel(arg)
 end
 
 -- DUEL_REQUESTED: payload is the challenger's name ("Name" on our realm).
+-- TODO(verify in-game): name format and that it is never secret.
 function Duels:OnDuelRequested(_, name)
 	if type(name) ~= "string" or ns.IsSecret(name) then
 		return
