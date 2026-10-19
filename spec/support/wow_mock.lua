@@ -475,6 +475,75 @@ function Mock:LeaveInstance()
 	self:Fire("PLAYER_ENTERING_WORLD", false, false)
 end
 
+-- Runs fn as something the player does (a click in Blizzard's UI): game
+-- actions called in here are allowed.
+function Mock:UserAction(fn)
+	self.inUserAction = true
+	local ok, err = pcall(fn)
+	self.inUserAction = false
+	if not ok then
+		error(err, 2)
+	end
+end
+
+-- Blizzard's duel dialog as a frame whose Hide and buttons only the player
+-- may use.
+function Mock:DuelPopup()
+	local popup = makeObject(self, "Frame", nil, self.env.UIParent)
+	local mock = self
+	local function guarded(label)
+		return function()
+			if not mock.inUserAction then
+				mock.gameActions[#mock.gameActions + 1] = label
+			end
+		end
+	end
+	popup.Hide = guarded("hid Blizzard's duel dialog")
+	popup.button1 = makeObject(self, "Button", nil, popup)
+	popup.button1.Click = guarded("clicked Accept in Blizzard's duel dialog")
+	popup.button2 = makeObject(self, "Button", nil, popup)
+	popup.button2.Click = guarded("clicked Decline in Blizzard's duel dialog")
+	return popup
+end
+
+-- Somebody challenged this player: the server fires DUEL_REQUESTED and
+-- Blizzard's dialog appears.
+function Mock:DuelRequested(challenger)
+	self.visiblePopups.DUEL_REQUESTED = self:DuelPopup()
+	self:Fire("DUEL_REQUESTED", challenger)
+end
+
+-- The player challenges someone (unit menu "Duel" or /duel).
+function Mock:ChallengeToDuel(target)
+	self:UserAction(function()
+		self.env.StartDuel(target)
+	end)
+end
+
+-- The challenged player clicks Accept in Blizzard's dialog.
+function Mock:AcceptDuelRequest()
+	self:UserAction(function()
+		self.env.AcceptDuel()
+	end)
+	self.visiblePopups.DUEL_REQUESTED = nil
+end
+
+-- The player declines (challenged) or withdraws (challenger); the client
+-- fires DUEL_FINISHED, which also closes Blizzard's dialog.
+function Mock:CancelDuelRequest()
+	self:UserAction(function()
+		self.env.CancelDuel()
+	end)
+	self.visiblePopups.DUEL_REQUESTED = nil
+	self:Fire("DUEL_FINISHED")
+end
+
+-- The duel ended: the result line (CHAT_MSG_SYSTEM), then DUEL_FINISHED.
+function Mock:DuelEnded(resultText)
+	self:Fire("CHAT_MSG_SYSTEM", resultText)
+	self:Fire("DUEL_FINISHED")
+end
+
 function Mock:ChatContains(fragment)
 	for _, line in ipairs(self.chat) do
 		if line:find(fragment, 1, true) then
@@ -973,6 +1042,35 @@ function Mock:BuildEnv()
 		G[name] = function(...)
 			mock.calls[#mock.calls + 1] = { name = name, args = { ... } }
 		end
+	end
+	-- Duel actions (warcraft.wiki.gg): StartDuel(unit or name) challenges,
+	-- also from the unit menu and /duel; AcceptDuel() and CancelDuel()
+	-- answer or withdraw a request; ForfeitDuel() gives up a running duel.
+	-- Only the player may do these. A call made outside a simulated user
+	-- action (Mock:UserAction) is recorded in mock.gameActions, which fails
+	-- every spec (the addon may only post-hook them).
+	mock.gameActions = {}
+	mock.inUserAction = false
+	for _, name in ipairs({ "StartDuel", "AcceptDuel", "CancelDuel", "ForfeitDuel" }) do
+		G[name] = function(...)
+			mock.calls[#mock.calls + 1] = { name = name, args = { ... }, user = mock.inUserAction }
+			if not mock.inUserAction then
+				mock.gameActions[#mock.gameActions + 1] = name
+			end
+		end
+	end
+	-- Blizzard's dialogs: StaticPopup_FindVisible(which) returns the shown
+	-- dialog frame or nil. Hiding a dialog or clicking its buttons is only
+	-- allowed for the player too.
+	mock.visiblePopups = {}
+	G.StaticPopup_FindVisible = function(which)
+		return mock.visiblePopups[which]
+	end
+	G.StaticPopup_Hide = function(which)
+		if not mock.inUserAction then
+			mock.gameActions[#mock.gameActions + 1] = "StaticPopup_Hide(" .. tostring(which) .. ")"
+		end
+		mock.visiblePopups[which] = nil
 	end
 	-- GlobalStrings (English client) used for parsing system messages
 	G.LOOT_ITEM_SELF = "You receive loot: %s."

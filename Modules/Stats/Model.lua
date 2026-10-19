@@ -208,8 +208,14 @@ handlers.duel = function(agg, e, d)
 	local r = d.result
 	if r == "won" or r == "opponent_fled" then
 		add(agg, "duelsWon", 1, e.t)
+		if d.ranked then
+			add(agg, "rankedWon", 1, e.t)
+		end
 	elseif r == "lost" or r == "fled" then
 		add(agg, "duelsLost", 1, e.t)
+		if d.ranked then
+			add(agg, "rankedLost", 1, e.t)
+		end
 		if r == "fled" then
 			add(agg, "duelsFled", 1, e.t)
 		end

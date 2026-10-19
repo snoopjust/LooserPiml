@@ -63,9 +63,9 @@ function Slash:OnInitialize()
 	end, "on/off", L.HELP_TEST)
 
 	self:Register("sim", function(arg)
-		local kind, name = arg:match("^(%S*)%s*(%S*)")
-		ns.TestMode:Sim(kind, name)
-	end, "<event> [name]", L.HELP_SIM)
+		local kind, name, option = arg:match("^(%S*)%s*(%S*)%s*(%S*)")
+		ns.TestMode:Sim(kind, name, option)
+	end, "<event> [name] [option]", L.HELP_SIM)
 
 	self:Register("selftest", function()
 		ns.TestMode:SelfTest()

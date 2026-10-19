@@ -124,7 +124,8 @@ end
 -- Simulations
 ----------------------------------------------------------------------
 
--- fn(owner, kind, name) - name is nil for "the player"
+-- fn(owner, kind, name, option) - name is nil for "the player"; option is
+-- an extra word some simulations take ("/lp sim duel Max fled")
 function TestMode:RegisterSim(owner, kinds, fn)
 	for _, kind in ipairs(kinds) do
 		if not sims[kind] then
@@ -151,7 +152,7 @@ local ALIASES = {
 }
 
 -- Returns true if something was simulated.
-function TestMode:Sim(kind, name)
+function TestMode:Sim(kind, name, option)
 	if not self.enabled then
 		ns.Log:Print(L.SIM_NEEDS_TEST)
 		return false
@@ -178,7 +179,8 @@ function TestMode:Sim(kind, name)
 		ns.Log:Print(L.SIM_USAGE, table.concat(self:GetSimKinds(), "/"))
 		return false
 	end
-	ns.SafeCall(sim.fn, sim.owner, kind, name)
+	option = option and option ~= "" and option:lower():sub(1, 16) or nil
+	ns.SafeCall(sim.fn, sim.owner, kind, name, option)
 	return true
 end
 

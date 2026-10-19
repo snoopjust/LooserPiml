@@ -334,14 +334,25 @@ function H.assertRecipientsOk(mock)
 	end
 end
 
+-- Fails the test if the addon itself called a duel action (StartDuel,
+-- AcceptDuel, CancelDuel, ForfeitDuel) or hid / clicked Blizzard's duel
+-- dialog. Only the player may do that (Mock:UserAction).
+function H.assertNoGameActions(mock)
+	if #mock.gameActions > 0 then
+		error(mock.player.name .. "'s LooserPiml performed game actions: " .. table.concat(mock.gameActions, ", "), 2)
+	end
+end
+
 -- Used in after_each: every client created during the test must be
--- error-free and must have kept the communication rule.
+-- error-free, must have kept the communication rule and must never have
+-- acted for the player.
 function H.checkClients()
 	local created = H.created
 	H.created = {}
 	for _, mock in ipairs(created) do
 		H.assertNoErrors(mock)
 		H.assertRecipientsOk(mock)
+		H.assertNoGameActions(mock)
 	end
 end
 

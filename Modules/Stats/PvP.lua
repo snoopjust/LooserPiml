@@ -1,5 +1,6 @@
--- Duels, battlegrounds and honor of the own character (recorded only; the
--- ranked duel handshake between LooserPiml users comes later).
+-- Duels, battlegrounds and honor of the own character. The ranked duel
+-- handshake between LooserPiml friends is in Duels.lua; this file parses
+-- the result and records it (ranked or not).
 --
 -- Duels: the result arrives as a system message for every duel nearby, e.g.
 -- DUEL_WINNER_KNOCKOUT = "%1$s has defeated %2$s in a duel" and
@@ -52,12 +53,20 @@ function Stats:OnChatMsgSystem(_, text)
 	if not result then
 		return
 	end
-	self:Record("duel", {
+	-- Ranked only if both picked Ranked before this result line; the pending
+	-- choice ends here either way.
+	local ranked, id = self.Duels:TakeResult(opponent)
+	local event = self:Record("duel", {
 		result = result,
 		opponent = opponent,
 		-- Only knowable for LooserPiml friends: nobody else is ever asked.
 		opponentHasAddon = ns.Friends:HasHandshake(opponent),
+		ranked = ranked or nil,
+		duelId = id,
 	})
+	if event then
+		self.Duels:OnResult(result, opponent, ranked, id)
+	end
 end
 
 ----------------------------------------------------------------------
@@ -173,4 +182,5 @@ function Stats:EnablePvP()
 	ns.Events:Register(self, "HONOR_XP_UPDATE", "OnHonorChanged")
 	ns.Events:Register(self, "PLAYER_PVP_RANK_CHANGED", "OnHonorChanged")
 	self:OnHonorChanged()
+	self.Duels:Enable()
 end

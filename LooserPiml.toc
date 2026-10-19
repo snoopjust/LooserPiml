@@ -49,6 +49,8 @@ Modules\Stats\Collectors.lua
 Modules\Stats\Money.lua
 Modules\Stats\Loot.lua
 Modules\Stats\PvP.lua
+Modules\Stats\Duels.lua
+Modules\Stats\DuelPanel.lua
 Modules\Stats\Sync.lua
 Modules\Stats\Leaderboard.lua
 Modules\Stats\LeaderboardTab.lua

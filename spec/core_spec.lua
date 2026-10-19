@@ -168,6 +168,8 @@ describe("Core", function()
 				-- replaces the global with a wrapper that calls the original first.
 				JumpOrAscendStart = true, TakeTaxiNode = true, RepairAllItems = true,
 				TakeInboxMoney = true, AutoLootMailItem = true,
+				-- Post-hooked (never called) to notice the player's own duel actions.
+				StartDuel = true, AcceptDuel = true, CancelDuel = true,
 				-- Named frames created by LibDBIcon (tooltip, our minimap button)
 				LibDBIconTooltip = true, LibDBIcon10_LooserPiml = true,
 				-- Main window (named for ESC/UISpecialFrames) and the Addon Compartment

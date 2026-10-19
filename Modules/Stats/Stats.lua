@@ -9,6 +9,7 @@
 --   Money.lua       gold changes with a source derived from context
 --   Loot.lua        rare loot, crafting, gathering, skill-ups (loot/skill messages)
 --   PvP.lua         duels, battlegrounds, honor
+--   Duels.lua       ranked duel handshake, own duel records (DuelPanel.lua: its panel)
 --   Sync.lua        sharing aggregates with friends, their stats cache
 --
 -- Storage (SavedVariables, per character because each client records only
@@ -25,6 +26,7 @@ Stats.MAX_TICK_GAP = 300    -- seconds: longer gaps (client frozen?) are not cou
 Stats.defaults = {
 	collect = true, -- setting: record stats at all
 	share = true,   -- setting: send my aggregates to my LooserPiml friends
+	askRanked = true, -- setting: ask "ranked?" when dueling a LooserPiml friend (Duels.lua)
 	chars = {},
 	friendStats = {}, -- fullName -> latest aggregates received from that friend (Sync.lua)
 }
@@ -35,6 +37,7 @@ function Stats:OnInitialize()
 	-- about the last day we were active before today (Tonight.lua).
 	self.previousActiveDay = self.db.lastActiveDay
 	self:RegisterOptions()
+	self.Duels:RegisterOptions() -- Duels.lua
 	self:RegisterUI() -- LeaderboardTab.lua
 	self:RegisterProfilesTab() -- Profiles.lua
 	if self.RegisterTonightTab then
@@ -114,6 +117,7 @@ function Stats:OnDisable()
 		self.ticker:Cancel()
 		self.ticker = nil
 	end
+	self.Duels:End("disabled")
 end
 
 ----------------------------------------------------------------------
