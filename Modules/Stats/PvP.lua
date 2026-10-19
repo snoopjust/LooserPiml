@@ -56,7 +56,13 @@ function Stats:OnChatMsgSystem(_, text)
 	-- Ranked only if both picked Ranked before this result line; the pending
 	-- choice ends here either way.
 	local ranked, id = self.Duels:TakeResult(opponent)
-	local event = self:Record("duel", {
+	if not self:IsCollecting() then
+		return
+	end
+	-- The per-opponent record first: Record() below triggers the stats
+	-- message, which carries the ranked duels.
+	local record, won = self.Duels:RecordResult(result, opponent, ranked, id)
+	self:Record("duel", {
 		result = result,
 		opponent = opponent,
 		-- Only knowable for LooserPiml friends: nobody else is ever asked.
@@ -64,9 +70,7 @@ function Stats:OnChatMsgSystem(_, text)
 		ranked = ranked or nil,
 		duelId = id,
 	})
-	if event then
-		self.Duels:OnResult(result, opponent, ranked, id)
-	end
+	self.Duels:Announce(result, opponent, ranked, record, won)
 end
 
 ----------------------------------------------------------------------

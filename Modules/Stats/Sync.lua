@@ -18,7 +18,10 @@
 --   { mv = Model.VERSION, day = "2026-10-11", week = "2026-10-05",
 --     class = "HUNTER", level = 23, gold = copper (only with "Share my gold"),
 --     prof = { { n = "Mining", r = 75 } }, fav = "Westfall", eve = 12,
+--     duel = { r = { { i, t, o, w }, ... }, h = { [opponent] = { w, l, rw, rl } } },
 --     p = { tonight = aggregate, week = aggregate, all = aggregate } }
+-- duel (stage C): own ranked duels (newest 60) and own record per opponent,
+-- only against listed friends (Duels.lua); Ladder.lua merges both sides.
 -- prof/fav/eve (professions, favourite zone, evenings played) were added
 -- for the Profiles tab; older clients don't send them (the profile shows
 -- "—") and ignore them when they receive them.
@@ -59,6 +62,7 @@ function Stats:BuildSyncPayload()
 		prof = self:ProfessionList(),
 		fav = self:FavouriteZone(),
 		eve = self:EveningsPlayed(),
+		duel = self.Duels:ForSync(),
 		p = {
 			tonight = self.Model.ForSync(aggregates.tonight),
 			week = self.Model.ForSync(aggregates.week),
@@ -140,6 +144,7 @@ function Stats:OnStatsMessage(data, sender, meta)
 		friend.gold = nil -- not shared
 	end
 	friend.prof, friend.fav, friend.eve = self.CleanProfileExtras(data)
+	friend.duel = self.Duels.Clean(data.duel)
 	friend.updated = time()
 	friend.stats = {
 		tonight = Model.Sanitize(data.p.tonight),
@@ -167,7 +172,9 @@ end
 
 -- Everyone on the leaderboard for a period: me, listed friends who
 -- answered a handshake at least once (online or not), and (in test mode)
--- sample friends. { name, class, agg, isSelf, online, lastSeen }
+-- sample friends. { name, class, agg, isSelf, online, lastSeen, gold, duel,
+-- rankedWins }; rankedWins = confirmed ranked duel wins in the period
+-- (Ladder.Annotate).
 function Stats:GetParticipants(period)
 	local list = {
 		{
@@ -177,6 +184,7 @@ function Stats:GetParticipants(period)
 			isSelf = true,
 			online = true,
 			gold = self:GetSharedGold(),
+			duel = self.Duels:Own(),
 		},
 	}
 	for name, entry in pairs(ns.Friends:GetDB()) do
@@ -190,6 +198,7 @@ function Stats:GetParticipants(period)
 				lastSeen = (cached and cached.lastSeen) or entry.lastSeen,
 				version = entry.version,
 				gold = cached and cached.gold,
+				duel = cached and cached.duel,
 			}
 		end
 	end
@@ -202,10 +211,12 @@ function Stats:GetParticipants(period)
 				online = true,
 				lastSeen = friend.lastSeen,
 				gold = friend.gold,
+				duel = friend.duel,
 				fake = true,
 			}
 		end
 	end
+	self.Ladder.Annotate(list, self.Model.PeriodStart(period, GetServerTime()))
 	return list
 end
 
@@ -268,6 +279,13 @@ function Stats:FillSampleFriends()
 			-- Kim doesn't share gold, so the gold comparison leaves her out.
 			gold = member.name ~= "Kim" and rand(20, 900) * 10000 + rand(0, 9999) or nil,
 		}
+	end
+	local names = {}
+	for _, member in ipairs(ns.TestMode.FAKE_MEMBERS) do
+		names[#names + 1] = ns.Roster:Normalize(member.name)
+	end
+	for name, duel in pairs(self.Duels.SampleData(names, now)) do
+		self.fakeFriends[name].duel = duel
 	end
 	ns.Events:Fire("LP_FRIENDS_CHANGED")
 	-- Other modules add their own sample data (inventory, wishlists).

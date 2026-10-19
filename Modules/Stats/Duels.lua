@@ -427,8 +427,7 @@ end
 
 -- After the result was recorded: tell the Ticker (duels between LooserPiml
 -- friends only; the winner's client announces it).
-function Duels:OnResult(result, opponent, ranked, id, test)
-	local record, won = self:RecordResult(result, opponent, ranked, id)
+function Duels:Announce(result, opponent, ranked, record, won, test)
 	if not ns.Friends:IsListed(opponent) and not test then
 		return
 	end
@@ -556,6 +555,45 @@ function Duels:Simulate(name, mode)
 			test = true,
 		})
 	end)
+end
+
+-- Sample duels between the four fake friends (names[1..4]) for the PvP tab
+-- in test mode: both sides' records, one duel disputed. name -> duel data.
+function Duels.SampleData(names, now)
+	local max, lena, jo, kim = names[1], names[2], names[3], names[4]
+	local ranked = {
+		{ max, lena }, { max, lena }, { lena, max }, { max, lena }, { jo, max }, { jo, max },
+		{ max, jo }, { lena, jo }, { lena, jo }, { kim, lena }, { max, kim }, { max, kim },
+	}
+	local fun = { { lena, max }, { jo, kim }, { kim, jo }, { max, jo } }
+	local data = {}
+	local function of(name)
+		data[name] = data[name] or { r = {}, h = {} }
+		return data[name]
+	end
+	local function count(name, opponent, field)
+		local h = of(name).h
+		h[opponent] = h[opponent] or { w = 0, l = 0, rw = 0, rl = 0 }
+		h[opponent][field] = h[opponent][field] + 1
+	end
+	for i, duel in ipairs(ranked) do
+		local winner, loser = duel[1], duel[2]
+		local id, t = "sample" .. i, now - (#ranked - i + 1) * 900
+		table.insert(of(winner).r, { i = id, t = t, o = loser, w = true })
+		table.insert(of(loser).r, { i = id, t = t, o = winner, w = false })
+		count(winner, loser, "w")
+		count(winner, loser, "rw")
+		count(loser, winner, "l")
+		count(loser, winner, "rl")
+	end
+	for _, duel in ipairs(fun) do
+		count(duel[1], duel[2], "w")
+		count(duel[2], duel[1], "l")
+	end
+	-- Both claim the win: disputed, left out of the ladder.
+	table.insert(of(kim).r, { i = "sampledisputed", t = now - 300, o = max, w = true })
+	table.insert(of(max).r, { i = "sampledisputed", t = now - 300, o = kim, w = true })
+	return data
 end
 
 ----------------------------------------------------------------------
