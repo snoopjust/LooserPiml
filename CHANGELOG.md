@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Friends never got "connected" on the Forever megaserver.** Characters
+  there have a first name and a surname, and the game reports them in
+  different shapes ("Headdleonty Kneadmetal" for messages, "Headdleonty"
+  + "Kneadmetal" for group members), so LooserPiml took a friend's
+  messages for a stranger's and dropped them. All shapes now mean the same
+  friend. "Add by name" also takes "First Surname".
+
 ## v0.2.0-beta.4 (2026-10-20, pre-release)
 
 Small fixes after the solo duel test, so everyone in the two-player test runs the same version.

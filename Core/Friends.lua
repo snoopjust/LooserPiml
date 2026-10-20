@@ -77,6 +77,15 @@ function Friends:ParseName(input)
 		return nil
 	end
 	input = input:gsub("^%s+", ""):gsub("%s+$", "")
+	-- "Headdleonty Kneadmetal": first name and surname (Forever megaserver,
+	-- see Roster:Normalize) -> "Headdleonty-Kneadmetal".
+	local first, surname = input:match("^([%a\128-\255]+)%s+([%a\128-\255]+)$")
+	if first and #first >= 2 and #first <= 48 and #surname >= 2 and #surname <= 48 then
+		local function capital(word)
+			return word:sub(1, 1):upper() .. word:sub(2):lower()
+		end
+		return capital(first) .. "-" .. capital(surname)
+	end
 	local name, realm = input:match("^([^%-]+)%-(.*)$")
 	name = (name or input):gsub("%s+$", "") -- "Max - Realm"; spaces inside a name are refused below
 	if not name:find("^[%a\128-\255]+$") or #name < 2 or #name > 48 then
@@ -97,8 +106,30 @@ function Friends:ParseName(input)
 	return ns.Roster:Normalize(name)
 end
 
+-- A name from game text (duel messages, DUEL_REQUESTED) -> the friend key.
+-- Usually just Normalize; a bare first name that matches exactly one listed
+-- friend's first name resolves to that friend (on the Forever megaserver
+-- such texts may leave out the surname, TODO(verify in-game)).
+function Friends:Resolve(name)
+	local full = ns.Roster:Normalize(name)
+	if not full or self:IsListed(full) or name:find("[%s%-]") then
+		return full
+	end
+	local match
+	for listed in pairs(self:GetDB()) do
+		if ns.Roster:Short(listed) == name then
+			if match then
+				return full -- ambiguous: two friends with that first name
+			end
+			match = listed
+		end
+	end
+	return match or full
+end
+
 -- The name SendAddonMessage and C_FriendList expect: "Name" for our own
--- realm, "Name-Realm" for others.
+-- realm, "Name-Realm" for others ("First-Surname" on the Forever
+-- megaserver, which the server delivers).
 function Friends:GetShortTarget(full)
 	if Ambiguate then
 		return Ambiguate(full, "none")

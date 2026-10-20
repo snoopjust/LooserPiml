@@ -73,7 +73,7 @@ function Network:Flush()
 	local pending = self.pending
 	self.pending = {}
 	for _, msg in ipairs(pending) do
-		local sender = msg.from:FullName()
+		local sender = msg.from:SenderName()
 		local delivered = false
 		for _, client in ipairs(self.clients) do
 			local deliver
@@ -240,6 +240,11 @@ function Mock.new(opts)
 		class = opts.class or "HUNTER",
 		level = opts.level or 10,
 		dead = false,
+		-- Forever megaserver: first name + surname (seen in-game 2026-10-20).
+		-- UnitName returns the surname as its second value (also for the
+		-- player), addon senders arrive as "First Surname", and a whisper to
+		-- "First-Surname" is delivered.
+		surname = opts.surname,
 	}
 	self.group = {}         -- others: { name, realm?, class }
 	self.raid = false
@@ -299,9 +304,21 @@ function Mock:FullName()
 	return self.player.name .. "-" .. self.player.realm
 end
 
+-- The sender name CHAT_MSG_ADDON reports for this player.
+function Mock:SenderName()
+	if self.player.surname then
+		return self.player.name .. " " .. self.player.surname
+	end
+	return self:FullName()
+end
+
 -- senderRealm: a bare "Name" means a character on the sender's realm.
 function Mock:MatchesName(target, senderRealm)
 	if target == self:FullName() then
+		return true
+	end
+	local surname = self.player.surname
+	if surname and (target == self.player.name .. "-" .. surname or target == self.player.name .. " " .. surname) then
 		return true
 	end
 	return target == self.player.name and (senderRealm == nil or senderRealm == self.player.realm)
@@ -933,9 +950,9 @@ function Mock:BuildEnv()
 			return nil
 		end
 		if isPlayer then
-			return u.name, nil
+			return u.name, u.surname
 		end
-		return u.name, u.realm
+		return u.name, u.realm -- group members with a surname: { realm = surname }
 	end
 	G.UnitExists = function(unit)
 		return mock:Unit(unit) ~= nil

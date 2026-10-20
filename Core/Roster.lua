@@ -5,7 +5,7 @@
 -- group (see Core/Friends.lua).
 --
 -- Names are stored as "Name-Realm" everywhere (stats keys, version table,
--- friends list).
+-- friends list); on the Forever megaserver as "First-Surname" (Normalize).
 -- Fires LP_ROSTER_CHANGED(joined, left) with arrays of full names, and
 -- LP_ROSTER_UPDATED after every scan (also for connection changes).
 local _, ns = ...
@@ -27,10 +27,34 @@ local function realmName()
 	return realm
 end
 
--- "Max" -> "Max-Realm"; "Max-Other" stays as is.
+-- WoW: Forever megaserver: every character has a first name and a surname
+-- (the unit frame shows "Padagin Darkforge"), and the APIs report them in
+-- different shapes (seen in-game 2026-10-20, beta 1.60.1):
+--   UnitName(unit)          "Headdleonty", "Kneadmetal"  (surname in the realm slot)
+--   UnitName("player")      first name and surname, the same way
+--   CHAT_MSG_ADDON sender   "Headdleonty Kneadmetal"     (space, no realm)
+--   a whisper to "Headdleonty-Kneadmetal" is delivered
+-- One key for all of them: "First-Surname", the shape UnitName gives and
+-- whispers accept. "First Surname[-Realm]" is converted to it (the realm is
+-- dropped: one megaserver). TODO(verify in-game): the shape in system
+-- messages (duel results), DUEL_REQUESTED and C_FriendList.
+local function fromSurnameForm(name)
+	local first, surname, rest = name:match("^([^%s%-]+)%s+([^%s%-]+)(.*)$")
+	if first and (rest == "" or rest:sub(1, 1) == "-") then
+		return first .. "-" .. surname
+	end
+	return nil
+end
+
+-- "Max" -> "Max-Realm"; "Max-Other" stays as is; "Max Surname" ->
+-- "Max-Surname" (Forever megaserver, see above).
 function Roster:Normalize(name)
 	if type(name) ~= "string" or name == "" or ns.IsSecret(name) then
 		return nil
+	end
+	local surnamed = fromSurnameForm(name)
+	if surnamed then
+		return surnamed
 	end
 	if name:find("-", 1, true) then
 		return name
@@ -46,19 +70,36 @@ function Roster:Short(name)
 	return (tostring(name):gsub("%-.*$", ""))
 end
 
+-- UnitName("player") has no realm on Retail-style clients; on the Forever
+-- megaserver its second value is the surname, and the player is keyed
+-- "First-Surname" like everyone else.
 function Roster:GetPlayerName()
 	if not self.playerName then
-		local name = UnitName("player")
-		if ns.IsSecret(name) then
+		local name, surname = UnitName("player")
+		if type(name) ~= "string" or ns.IsSecret(name) then
 			return nil
 		end
-		self.playerName = self:Normalize(name)
+		self.playerFirstName = name
+		if type(surname) == "string" and surname ~= "" and not ns.IsSecret(surname) then
+			self.playerName = name .. "-" .. surname:gsub("[%s%-]", "")
+			self.playerSurnamed = true
+		else
+			self.playerName = self:Normalize(name)
+		end
 	end
 	return self.playerName
 end
 
+-- Also true for the bare first name: some system texts may name players
+-- without their surname (TODO(verify in-game)).
 function Roster:IsPlayer(name)
-	return name ~= nil and self:Normalize(name) == self:GetPlayerName()
+	if name == nil then
+		return false
+	end
+	if self:Normalize(name) == self:GetPlayerName() then
+		return true
+	end
+	return self.playerSurnamed == true and type(name) == "string" and not ns.IsSecret(name) and name == self.playerFirstName
 end
 
 function Roster:GetPlayerClass()

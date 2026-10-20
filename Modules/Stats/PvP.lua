@@ -35,13 +35,14 @@ function Stats:ParseDuel(text)
 	if not args or not args[1] or not args[2] then
 		return nil
 	end
-	local winner, loser = ns.Roster:Normalize(args[1]), ns.Roster:Normalize(args[2])
-	local me = ns.Roster:GetPlayerName()
+	-- IsPlayer/Resolve also accept "First Surname" and a bare first name
+	-- (Forever megaserver, see Roster:Normalize).
+	local Roster, Friends = ns.Roster, ns.Friends
 	local result, opponent
-	if winner == me then
-		result, opponent = knockout and "won" or "opponent_fled", loser
-	elseif loser == me then
-		result, opponent = knockout and "lost" or "fled", winner
+	if Roster:IsPlayer(args[1]) then
+		result, opponent = knockout and "won" or "opponent_fled", Friends:Resolve(args[2])
+	elseif Roster:IsPlayer(args[2]) then
+		result, opponent = knockout and "lost" or "fled", Friends:Resolve(args[1])
 	else
 		return nil -- somebody else's duel
 	end

@@ -361,7 +361,8 @@ function Duels:ResolveTarget(arg)
 		end
 		return ns.Roster:Normalize(name)
 	end
-	return cleanName(arg)
+	-- /duel <name>: may be typed without the surname.
+	return cleanName(arg) and ns.Friends:Resolve(arg)
 end
 
 function Duels:OnStartDuel(arg)
@@ -381,7 +382,7 @@ function Duels:OnDuelRequested(_, name)
 	if type(name) ~= "string" or ns.IsSecret(name) then
 		return
 	end
-	local opponent = ns.Roster:Normalize(name)
+	local opponent = ns.Friends:Resolve(name)
 	if not opponent or not ns.Friends:IsConnected(opponent) then
 		return -- not a connected LooserPiml friend: a normal duel, nothing is sent
 	end
