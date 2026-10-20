@@ -209,7 +209,7 @@ hidden addon messages. Everything with a friend is in section 3.
 
 ### 2.9 Stage C1: ranked duels (solo)
 
-Done 2026-10-20 with v0.2.0-beta.3 (dev junction): all checks passed except the sim timing and three layout points, fixed afterwards (STATUS.md, in-game results). After the fixes: check the panel height, the W – L column, the settings label and, at your normal resolution, the banner width (/lp sim duel Jo fled).
+Done 2026-10-20 with v0.2.0-beta.3 (dev junction): all checks passed except the sim timing and three layout points, fixed afterwards (STATUS.md, in-game results). After the fixes: check the panel height, the W – L column, the settings label and, at your normal resolution, the banner width (/lp sim duel Jo fled). Rechecked after the fixes: all fine (2026-10-20).
 
 - [ ] `/lp test on`, `/lp sim duel Max ranked`: a small panel "LooserPiml · ranked duel?" appears above the screen center with "[test] Your ranked record against Max: 0 – 0", buttons **Ranked** and **Just for fun**, the note "Counts as ranked only if both pick Ranked. …" and the status "Nobody picked yet." About 1 s later: "Max picked Ranked · your turn." 📸
 - [ ] Click **Ranked**: the button turns bronze, status "You both picked Ranked: this duel counts!". The sim waits for your pick: about 5 s after it the panel closes (accept + countdown), about 2 s later a banner "[test] … <you> won a ranked duel against Max · Ranked head to head: <you> 1 – 0 Max". 📸
@@ -231,10 +231,10 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 📸 and send them to me together with anything that looks wrong.
 
 ### 3.1 Install the beta (both, 5 min)
-- [ ] Your friend installs **v0.2.0-beta.3** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
+- [ ] Your friend installs **v0.2.0-beta.4** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
 - [ ] You either use the same beta or stay on the dev junction (`dev`). With `dev`, version warnings don't appear (dev builds are never compared); that's correct.
 - [ ] In-game, character select › AddOns: LooserPiml is listed and enabled (tick "Load out of date AddOns" if needed). No Lua error on login.
-- [ ] `/lp version` on the friend's side shows `v0.2.0-beta.3`. 📸 WowUp's addon list with the version, and the `/lp version` line.
+- [ ] `/lp version` on the friend's side shows `v0.2.0-beta.4`. 📸 WowUp's addon list with the version, and the `/lp version` line.
 
 ### 3.2 Add each other (both, 5 min)
 - [ ] **WoW friends**: Social (O) › Add Friend, in both directions. Each sees the other as online.

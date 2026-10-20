@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-19 (stage C1: ranked duels between LooserPiml friends, PvP tab, Duel King; v0.2.0-beta.3 for the duel test with a friend this weekend, before the beta ends on 22 Oct)_
+_Last updated: 2026-10-20 (stage C1: ranked duels between LooserPiml friends, PvP tab, Duel King; solo test done, v0.2.0-beta.4 with the fixes for the duel test with a friend, before the beta ends on 22 Oct)_
 
 ## Done
 
@@ -139,7 +139,7 @@ Ranked duels solo with v0.2.0-beta.3 (dev junction, test mode, 2026-10-20):
 
 - Panel, buttons (Ranked / Just for fun turn bronze, own picks loop back), status lines, ranked and fun results, "(Jo fled)", fun duel as a chat line only with the setting, PvP tab (ladder, matrix, highlights, Ranked / All duels), Duel King card, Profiles PvP rows, the three settings, "only in test mode" outside it: all as expected. Icons cross and moon render (TODO #69). `/lp log`: no warnings, no blocked actions.
 - Found and fixed: `/lp sim duel` closed the panel 8 s after the start even without a pick, so a late click didn't count and no banner came (the sim now waits for your pick); a gap in the panel between note and status; the W – L column far right with fewer than 7 players; the settings label "Ask "ranked?" when dueling…" was cut off (now "Ask "ranked?" in duels").
-- Not changed: the duel banner ran off both screen edges on a two-line text. Possibly the unusual resolution of that session; to be checked again at the normal resolution before deciding.
+- Not changed: the duel banner ran off both screen edges on a two-line text. Rechecked at the normal resolution after the fixes: fine, so it was the unusual resolution of that session.
 - One ranked sim banner (Max) wasn't seen, the next one (Jo) was. Probably missed while the next sim's panel was open; watch in the two-player test.
 
 ## Open questions
@@ -154,7 +154,7 @@ Resolved 2026-10-12: chests are a separate counter (not gathered); communication
 
 ## Next steps
 
-1. **Two-player test with v0.2.0-beta.3** this weekend, before the Forever beta ends on 22 Oct (pre-release; TESTING.md section 3 incl. the new duel block 3.5, plus 2.6–2.9 and TODO #26–69), then decide whether to tag **v0.2.0**. Every friend has to add the others to their WoW friends list and their LooserPiml friends list first.
+1. **Two-player test with v0.2.0-beta.4** (both on the same version) this weekend, before the Forever beta ends on 22 Oct (pre-release; TESTING.md section 3 incl. the new duel block 3.5, plus 2.6–2.9 and TODO #26–69), then decide whether to tag **v0.2.0**. Every friend has to add the others to their WoW friends list and their LooserPiml friends list first.
 2. Remaining v0.1.0 checks: sections 2.4/2.5 (drowning, dungeons, restrictions) and section 3 with a friend; WowUp install on a friend's PC (TODO #22).
 3. Stage C next: battleground stats in the PvP tab (placeholder is there; the data is already collected).
 4. Next modules, all built on Core (Comm handlers, `DB:GetModuleDB`, Roster, TestMode sims, Slash, Options, Window tabs):

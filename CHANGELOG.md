@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.2.0-beta.4 (2026-10-20, pre-release)
+
+Small fixes after the solo duel test, so everyone in the two-player test runs the same version.
 
 ### Fixed
 
