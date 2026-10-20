@@ -232,10 +232,10 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 📸 and send them to me together with anything that looks wrong.
 
 ### 3.1 Install the beta (both, 5 min)
-- [ ] Your friend installs **v0.2.0-beta.4** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
+- [ ] Your friend installs **v0.2.0-beta.5** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
 - [ ] You either use the same beta or stay on the dev junction (`dev`). With `dev`, version warnings don't appear (dev builds are never compared); that's correct.
 - [ ] In-game, character select › AddOns: LooserPiml is listed and enabled (tick "Load out of date AddOns" if needed). No Lua error on login.
-- [ ] `/lp version` on the friend's side shows `v0.2.0-beta.4`. 📸 WowUp's addon list with the version, and the `/lp version` line.
+- [ ] `/lp version` on the friend's side shows `v0.2.0-beta.5`. 📸 WowUp's addon list with the version, and the `/lp version` line.
 
 ### 3.2 Add each other (both, 5 min)
 - [ ] **WoW friends**: Social (O) › Add Friend, in both directions. Each sees the other as online.
@@ -363,5 +363,5 @@ targeted), the other the **challenged** (gets the game's dialog).
 | 67 | `StaticPopup_FindVisible("DUEL_REQUESTED")` returns the game's duel dialog and our panel can be anchored below it | Section 3.5 (panel right below the dialog) | |
 | 68 | The game withdraws an unanswered duel request by itself (with `DUEL_FINISHED`); our 120 s safety net is never needed | Section 3.5 (let a request run out once) | |
 | 69 | Raid target icons 7 (cross) and 5 (moon) render in the duel banner / chat line | Section 2.9 | **OK (2026-10-20)**: cross and moon render |
-| 70 | Megaserver names: UnitName = first name + surname in the realm slot, addon senders "First Surname", whispers to "First-Surname" delivered | Section 3.2 | **Seen 2026-10-20** (that's why the friends never connected before the fix). Still open: the name shape in duel messages, `DUEL_REQUESTED` and `C_FriendList`; whether two friends connect without a group (WoW friends list across "Classic Beta PvE" / "PvE 2") |
+| 70 | Megaserver names: UnitName = first name + surname in the realm slot, addon senders "First Surname", whispers to "First-Surname" delivered | Section 3.2 | **Seen 2026-10-20** (that's why the friends never connected before the fix). Still open: the name shape in duel messages, `DUEL_REQUESTED` and `C_FriendList`; a visible `/w Headdleonty-Kneadmetal` arrives too (2026-10-20); whether two friends connect without a group (WoW friends list across "Classic Beta PvE" / "PvE 2") |
 | 54 | The GitHub release of a `-beta` tag is marked "Pre-release", and WowUp with Default Addon Channel = Beta installs it from the URL (with Stable it picks v0.1.0) | Section 3.1 | Release marking checked on GitHub (see STATUS.md); WowUp still open |

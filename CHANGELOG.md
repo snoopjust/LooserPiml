@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.2.0-beta.5 (2026-10-20, pre-release)
+
+Fix for the two-player test on the megaserver.
 
 ### Fixed
 
