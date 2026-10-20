@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.2.0-beta.6 (2026-10-20, pre-release)
+
+Fix for larger messages between friends, found in the two-player test.
 
 ### Fixed
 

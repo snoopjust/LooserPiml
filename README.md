@@ -60,14 +60,14 @@ normal release instead.
 2. **Get Addons** → **Install from URL** → paste
    `https://github.com/snoopjust/LooserPiml` → **Install**. If LooserPiml
    is already installed, use **Check for Updates** instead.
-3. The version column shows `v0.2.0-beta.5` (or newer).
+3. The version column shows `v0.2.0-beta.6` (or newer).
 4. To get only normal releases again later, set the channel back to
    **Stable**. The next normal release replaces the beta.
 
 **Manual (fallback):** open
 [Releases](https://github.com/snoopjust/LooserPiml/releases), pick the
 newest release marked **Pre-release**, download its
-`LooserPiml-v0.2.0-beta.5-forever.zip` (the name follows the version) and
+`LooserPiml-v0.2.0-beta.6-forever.zip` (the name follows the version) and
 install it like the manual install above.
 
 ## Usage

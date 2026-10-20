@@ -160,7 +160,7 @@ Resolved 2026-10-12: chests are a separate counter (not gathered); communication
 
 ## Next steps
 
-1. **Two-player test with v0.2.0-beta.5** (both on the same version; beta.5 fixes the megaserver names) this weekend, before the Forever beta ends on 22 Oct (pre-release; TESTING.md section 3 incl. the new duel block 3.5, plus 2.6–2.9 and TODO #26–69), then decide whether to tag **v0.2.0**. Every friend has to add the others to their WoW friends list and their LooserPiml friends list first.
+1. **Two-player test with v0.2.0-beta.6** (both on the same version; beta.5 fixed the megaserver names, beta.6 the large messages) this weekend, before the Forever beta ends on 22 Oct (pre-release; TESTING.md section 3 incl. the new duel block 3.5, plus 2.6–2.9 and TODO #26–69), then decide whether to tag **v0.2.0**. Every friend has to add the others to their WoW friends list and their LooserPiml friends list first.
 2. Remaining v0.1.0 checks: sections 2.4/2.5 (drowning, dungeons, restrictions) and section 3 with a friend; WowUp install on a friend's PC (TODO #22).
 3. Stage C next: battleground stats in the PvP tab (placeholder is there; the data is already collected).
 4. Next modules, all built on Core (Comm handlers, `DB:GetModuleDB`, Roster, TestMode sims, Slash, Options, Window tabs):
