@@ -233,7 +233,7 @@ describe("Core", function()
 			local ns = mock.ns
 			mock.sent = {}
 			ns.Slash:Dispatch("selftest")
-			mock:Advance(3)
+			mock:Advance(6)
 			assert.is_true(mock:ChatContains("[OK]|r Libraries: CallbackHandler-1.0"))
 			assert.is_true(mock:ChatContains("Serialize + compress roundtrip"))
 			assert.is_true(mock:ChatContains("[OK]|r Loopback dispatch"))
@@ -241,16 +241,16 @@ describe("Core", function()
 			assert.is_true(mock:ChatContains("Real transport: echo from"))
 			assert.is_true(mock:ChatContains("payload intact"))
 			assert.is_false(mock:ChatContains("[FAIL]"))
-			-- the payload really needed several chunks, whispered to Max only
-			local chunks = 0
+			-- the payload really needed several parts, whispered to Max only
+			local parts = 0
 			for _, call in ipairs(mock.sent) do
 				assert.are.equal("WHISPER", call.chatType)
 				assert.are.equal("Max", call.target)
-				if ns.Comm:Decode(call.text) == nil then
-					chunks = chunks + 1 -- a partial chunk can't be decoded on its own
+				if call.text:find("^LPP") then
+					parts = parts + 1
 				end
 			end
-			assert.is_true(chunks >= 3, "expected a multi-chunk message, got " .. chunks .. " partial chunks")
+			assert.is_true(parts >= 3, "expected a message in several parts, got " .. parts)
 			assert.is_false(max:ChatContains("[FAIL]")) -- Max only echoed, silently
 			H.assertNoErrors(mock)
 		end)

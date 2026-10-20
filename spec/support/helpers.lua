@@ -237,13 +237,26 @@ end
 -- Every LooserPiml message a client handed to the network, decoded, with
 -- AceComm's multi-part chunks put back together (per target, like
 -- AceComm does on the receiving side): { t, d, chatType, target }.
+-- LooserPiml's own numbered parts (Comm:SendText) are joined too.
 function H.decodedSent(mock)
-	local out, partial = {}, {}
+	local out, partial, parts = {}, {}, {}
 	for _, call in ipairs(mock.sent) do
 		if call.prefix == "LPiml" then
 			local key = tostring(call.chatType) .. ":" .. tostring(call.target)
 			local control, rest = call.text:match("^([\001-\009])(.*)$")
 			local text
+			local id, index, total, piece = call.text:match("^LPP(%w+):(%d+)/(%d+):(.*)$")
+			if id then
+				local pkey = key .. ":" .. id
+				parts[pkey] = parts[pkey] or { n = 0 }
+				parts[pkey][tonumber(index)] = piece
+				parts[pkey].n = parts[pkey].n + 1
+				if parts[pkey].n == tonumber(total) then
+					text = table.concat(parts[pkey], "", 1, tonumber(total))
+					parts[pkey] = nil
+				end
+				control = "part"
+			end
 			if control == "\001" then
 				partial[key] = { rest }
 			elseif control == "\002" and partial[key] then

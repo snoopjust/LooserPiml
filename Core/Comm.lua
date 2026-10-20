@@ -49,6 +49,23 @@ Comm.SELFTEST = "SELFTEST"     -- /lp selftest ping, sent back by the friend as 
 Comm.SELFTEST_ECHO = "SELFTEST_ECHO"
 Comm.MAX_SEEN = 500            -- remembered message ids (duplicate filter)
 
+-- Large messages travel as our own numbered parts, each a normal single
+-- addon message, instead of AceComm's multi-part chunks. Seen on the Forever
+-- beta (2026-10-20, two players): single messages arrived intact, but every
+-- AceComm multi-part message (STATS with duels, the self-test) arrived
+-- reassembled yet damaged ("bad compression"). Whether full 255-byte chunks
+-- get cut, lost or reordered is TODO(verify in-game); smaller parts, sent a
+-- little apart and joined only when all of them are there in order, avoid
+-- all three. A part that never arrives is logged with what was missing.
+-- Part text: "LPP<id>:<index>/<total>:<piece of the encoded message>"
+Comm.MAX_SINGLE = 240          -- encoded messages up to this size go as they are
+Comm.PART_SIZE = 200           -- bytes of the encoded message per part (+ ~16 header)
+Comm.PART_INTERVAL = 0.2       -- seconds between two parts (all recipients together)
+Comm.PART_TIMEOUT = 60         -- seconds an incomplete message is kept
+Comm.MAX_PARTS = 64            -- parts per message (12 KB), more is refused
+Comm.MAX_PARTIAL = 30          -- incomplete messages kept at once
+local PART_PATTERN = "^LPP(%w+):(%d+)/(%d+):(.*)$"
+
 local handlers = {} -- type -> array of { owner, fn }
 local seq = 0
 local seen, seenOrder = {}, {}
@@ -202,17 +219,55 @@ function Comm:DropHeld(key)
 	end
 end
 
-local function onChunkSent(entry, _, _, didSend)
-	-- AceComm passes (arg, bytesSent, bytesTotal, didSend) per chunk.
-	-- didSend is CTL's boolean, not the Enum.SendAddonMessageResult code, so
-	-- we can't tell a lockdown from other refusals here. It is nil on old
-	-- AceComm versions; only false means failure. If one chunk of a multi-part
-	-- message fails, receivers discard the incomplete message, and we resend
-	-- all of it (their duplicate filter drops any copy that did arrive).
-	if didSend == false and not entry.failed then
-		entry.failed = true
-		Comm:OnSendFailed(entry)
+local partSeq = 0
+local nextPartAt = 0
+
+-- Hands an encoded message to AceComm for one whisper target: as it is if
+-- it fits MAX_SINGLE, otherwise as numbered parts PART_INTERVAL apart.
+-- done(allSent) once every part was handed to the client. AceComm calls
+-- back with (arg, bytesSent, bytesTotal, didSend); didSend is CTL's boolean
+-- (nil on old AceComm versions), only false means the client refused.
+-- scope: a part still due is skipped if the friend may no longer get it
+-- (removed meanwhile) or test mode started. Returns the number of parts.
+function Comm:SendText(text, target, prio, done, scope)
+	if #text <= self.MAX_SINGLE then
+		self:SendCommMessage(self.PREFIX, text, "WHISPER", target, prio, function(_, _, _, didSend)
+			if done then
+				done(didSend ~= false)
+			end
+		end)
+		return 1
 	end
+	partSeq = partSeq + 1
+	local id = string.format("%x%x", self.session % 4096, partSeq)
+	local total = math.ceil(#text / self.PART_SIZE)
+	local remaining, allSent = total, true
+	local now = GetTime()
+	local function partDone(didSend)
+		if didSend == false then
+			allSent = false
+		end
+		remaining = remaining - 1
+		if remaining == 0 and done then
+			done(allSent)
+		end
+	end
+	for i = 1, total do
+		local part = string.format("LPP%s:%d/%d:", id, i, total) .. text:sub((i - 1) * self.PART_SIZE + 1, i * self.PART_SIZE)
+		local at = math.max(now, nextPartAt)
+		nextPartAt = at + self.PART_INTERVAL
+		C_Timer.After(at - now, function()
+			local full = ns.Roster:Normalize(target)
+			if ns.TestMode:IsEnabled() or not (full and ns.Friends:Allowed(full, scope or "friends")) then
+				partDone(false)
+				return
+			end
+			self:SendCommMessage(self.PREFIX, part, "WHISPER", target, prio, function(_, _, _, didSend)
+				partDone(didSend)
+			end)
+		end)
+	end
+	return total
 end
 
 -- Messages created in test mode never leave the client, even when they
@@ -254,8 +309,16 @@ function Comm:Transmit(entry)
 	end
 	entry.attempts = entry.attempts + 1
 	entry.failed = false
+	-- If any part is refused, receivers never complete the message, and we
+	-- resend all of it (their duplicate filter drops a copy that did arrive).
+	local function done(allSent)
+		if not allSent and not entry.failed then
+			entry.failed = true
+			Comm:OnSendFailed(entry)
+		end
+	end
 	for _, full in ipairs(recipients) do
-		self:SendCommMessage(self.PREFIX, text, "WHISPER", ns.Friends:GetShortTarget(full), entry.prio, onChunkSent, entry)
+		self:SendText(text, ns.Friends:GetShortTarget(full), entry.prio, done, entry.scope)
 	end
 	-- Lets senders rate-limit by actual transmissions, including messages
 	-- that were held and flushed later.
@@ -370,11 +433,88 @@ local function isDuplicate(sender, envelope)
 	return false
 end
 
--- AceComm callback
-function Comm:OnCommReceived(prefix, text, distribution, sender)
-	if prefix == self.PREFIX then
-		self:Receive(text, sender, distribution, false)
+Comm.partial = {} -- sender .. "/" .. id -> { parts = {}, count, total, at, sender }
+
+-- Drops incomplete messages older than PART_TIMEOUT, saying what was
+-- missing (the in-game diagnosis for lost parts).
+function Comm:PrunePartial(now)
+	for key, msg in pairs(self.partial) do
+		if now - msg.at > self.PART_TIMEOUT then
+			local missing = {}
+			for i = 1, msg.total do
+				if not msg.parts[i] then
+					missing[#missing + 1] = i
+				end
+			end
+			ns.Log:Debug("Incomplete message from %s: %d of %d parts arrived, missing %s", msg.sender, msg.count, msg.total, table.concat(missing, ","))
+			self.partial[key] = nil
+		end
 	end
+end
+
+-- One of our parts (see SendText). Returns the whole encoded message once
+-- every part is there, nil while waiting. Only listed friends' parts are
+-- kept at all (the same rule as Receive, before anything is stored).
+function Comm:AddPart(text, sender)
+	local id, index, total, piece = text:match(PART_PATTERN)
+	if not id then
+		return nil, false
+	end
+	index, total = tonumber(index), tonumber(total)
+	local full = type(sender) == "string" and not ns.IsSecret(sender) and ns.Roster:Normalize(sender)
+	if not full or not ns.Friends:IsListed(full) or #id > 16
+		or not index or not total or total < 2 or total > self.MAX_PARTS or index < 1 or index > total then
+		return nil, true
+	end
+	local now = GetTime()
+	self:PrunePartial(now)
+	local key = full .. "/" .. id
+	local msg = self.partial[key]
+	if not msg then
+		local count = 0
+		for _ in pairs(self.partial) do
+			count = count + 1
+		end
+		if count >= self.MAX_PARTIAL then
+			ns.Log:Debug("Too many incomplete messages, dropped a part from %s", full)
+			return nil, true
+		end
+		msg = { parts = {}, count = 0, total = total, at = now, sender = full }
+		self.partial[key] = msg
+		-- Also cleaned up (and logged) when no further part ever comes.
+		C_Timer.After(self.PART_TIMEOUT + 1, function()
+			self:PrunePartial(GetTime())
+		end)
+	end
+	if msg.total ~= total or msg.parts[index] then
+		return nil, true -- inconsistent or a duplicate part
+	end
+	msg.parts[index] = piece
+	msg.count = msg.count + 1
+	if msg.count < total then
+		return nil, true
+	end
+	self.partial[key] = nil
+	return table.concat(msg.parts, "", 1, total), true
+end
+
+-- AceComm callback. AceComm still reassembles its own multi-part chunks
+-- (older LooserPiml versions send those); our parts come as single
+-- messages and are joined here first.
+function Comm:OnCommReceived(prefix, text, distribution, sender)
+	if prefix ~= self.PREFIX then
+		return
+	end
+	if type(text) == "string" and text:sub(1, 3) == "LPP" then
+		local whole, isPart = self:AddPart(text, sender)
+		if isPart then
+			if whole then
+				self:Receive(whole, sender, distribution, false)
+			end
+			return
+		end
+	end
+	self:Receive(text, sender, distribution, false)
 end
 
 function Comm:Receive(text, sender, distribution, isTest)
@@ -449,11 +589,11 @@ function Comm:SimulateReceive(sender, msgType, data, late)
 	self:Receive(self:Encode(envelope), sender, "LOOPBACK", true)
 end
 
--- /lp selftest: a real multi-chunk addon message whispered to one
+-- /lp selftest: a real multi-part addon message whispered to one
 -- connected friend, whose client sends it back (TestMode's echo handler).
 -- Bypasses the hold queue on purpose (the caller skips it in test mode and
 -- while restricted). Returns nil unless `target` is a connected friend.
--- onResult(didSend) is called once all chunks were handed to the client.
+-- onResult(didSend) is called once all parts were handed to the client.
 -- Why not a whisper to ourselves: on Forever the server rejects it ("No
 -- player named X is currently playing").
 function Comm:SendSelfTest(data, target, onResult)
@@ -462,18 +602,13 @@ function Comm:SendSelfTest(data, target, onResult)
 	end
 	local envelope = { v = self.PROTOCOL, t = self.SELFTEST, s = self.session, id = nextId(), d = data }
 	local text = self:Encode(envelope)
-	local allSent = true
-	self:SendCommMessage(self.PREFIX, text, "WHISPER", ns.Friends:GetShortTarget(target), "NORMAL", function(_, sent, total, didSend)
-		if didSend == false then
-			allSent = false
-		end
-		if sent >= total and onResult then
-			onResult(allSent)
-		end
-	end)
-	-- AceComm splits into chunks of up to 254 bytes (255 for single messages)
-	local chunks = #text <= 255 and 1 or math.ceil(#text / 254)
-	return #text, chunks
+	local parts = self:SendText(text, ns.Friends:GetShortTarget(target), "NORMAL", onResult)
+	return #text, parts
+end
+
+-- How many addon messages an encoded message of this size becomes.
+function Comm:CountParts(bytes)
+	return bytes <= self.MAX_SINGLE and 1 or math.ceil(bytes / self.PART_SIZE)
 end
 
 ----------------------------------------------------------------------

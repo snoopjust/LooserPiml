@@ -251,8 +251,8 @@ describe("Ranked duels: ladder", function()
 				return payload
 			end)() })
 			local text = mock.ns.Comm:Encode({ v = 1, t = "STATS", d = s:BuildSyncPayload() })
-			local chunks = math.ceil(#text / 254)
-			print(string.format("\n[size] STATS with 60 ranked duels: %d bytes on the wire (%d without duels), %d chunks", #text, before, chunks))
+			local chunks = mock.ns.Comm:CountParts(#text)
+			print(string.format("\n[size] STATS with 60 ranked duels: %d bytes on the wire (%d without duels), %d parts", #text, before, chunks))
 			assert.is_true(chunks <= 10)
 		end)
 

@@ -499,12 +499,12 @@ sequenceDiagram
     alt test mode
         CA->>CA: Receive(text, me, "LOOPBACK"), dropped as own message
     else connected friends (Friends:Route)
-        CA->>LIB: SendCommMessage(LPiml, text, WHISPER, friend, onChunkSent), once per friend
-        LIB->>SRV: C_ChatInfo.SendAddonMessage per chunk (max 255 bytes, throttled)
-        opt client refuses a chunk
-            LIB-->>CA: onChunkSent(didSend = false), OnSendFailed, Hold(atFront)
+        CA->>LIB: SendText(): one SendCommMessage(LPiml, text, WHISPER, friend) per friend, or numbered parts "LPP<id>:i/n:" 0.2 s apart for > 240 bytes
+        LIB->>SRV: C_ChatInfo.SendAddonMessage per message (single messages only, max 255 bytes, throttled)
+        opt client refuses a message or part
+            LIB-->>CA: didSend = false, OnSendFailed, Hold(atFront)
         end
-        SRV->>CB: CHAT_MSG_ADDON chunks, AceComm reassembles, OnCommReceived
+        SRV->>CB: CHAT_MSG_ADDON, OnCommReceived (parts joined by AddPart once all are there, in order)
         CB->>CB: Receive(): sender on the friend's list? (else dropped), Decode, own-echo, protocol and duplicate checks
         CB->>TB: OnTick(data, "Me-Realm", meta with late and test)
         TB->>TB: Sanitize (types, lengths, escape pipes)
@@ -546,16 +546,24 @@ sequenceDiagram
    which drops it as "own message". The point is to prove that
    encode/decode works without anything leaving the client. Simulated
    *friends* use a separate entry point (next section).
-10. AceComm splits into ≤255-byte chunks, ChatThrottleLib paces them, and
-    the client API sends them.
+10. **Parts**: an encoded message up to 240 bytes goes out as it is.
+    Larger ones are cut into our own numbered parts of 200 bytes
+    (`LPP<id>:<i>/<n>:`), 0.2 s apart, each a normal single addon message.
+    AceComm's multi-part chunks are not used any more: on the Forever beta
+    they arrived damaged ("bad compression") while single messages were
+    fine (2026-10-20). ChatThrottleLib paces everything, the client API
+    sends it. A part still due for a friend removed meanwhile is skipped.
 11. **Refusals**: if the client still refuses (e.g. lockdown started
-    between check and send), AceComm reports `didSend = false` per chunk.
+    between check and send), AceComm reports `didSend = false` per message.
     `Comm` puts the whole message back at the front of the queue, at most
     5 attempts.
 12. Whispers are not echoed to the sender; `Receive()` still ignores its
     own name (test-mode loopback).
-13. On the friend's side AceComm reassembles chunks and calls
-    `Comm:OnCommReceived`.
+13. On the friend's side AceComm calls `Comm:OnCommReceived` per
+    message. `AddPart` keeps the parts of listed friends only and joins
+    them once all are there (any order); after 60 s an incomplete message
+    is dropped with a log line naming the missing parts. AceComm still
+    reassembles its own chunks from older LooserPiml versions.
 14. `Receive()` first drops the message if the sender isn't on the
     friend's LooserPiml list. Then it decodes and filters: own echo, other
     protocol version (except HELLO), and duplicates keyed by sender +
@@ -608,6 +616,7 @@ WoW: Forever uses Retail's (Midnight) addon rules. What that means here:
 | `COMBAT_LOG_EVENT_UNFILTERED` can't be registered | `Ticker.lua` drowning section | No cause-of-death from the combat log. Drowning is derived from the breath mirror timer only |
 | Events that don't exist on this client | `Events:Register` (`C_EventUtils.IsEventValid`) | Skipped with a debug line instead of a Lua error |
 | Protected functions / blocked actions | `Log.lua` | We call none. ADDON_ACTION_BLOCKED/FORBIDDEN are recorded and shown in debug/test mode so a hit is obvious |
+| AceComm multi-part messages arrive damaged on Forever (2026-10-20) | `Comm:SendText`, `Comm:AddPart` | Own numbered parts ≤ 216 bytes, 0.2 s apart, joined in order once complete; missing parts logged |
 | Throttling (per prefix, server side) | ChatThrottleLib (via AceComm), `Version.HELLO_COOLDOWN`, queue cap | Messages only on real events; compressed to few chunks; at most one HELLO per friend per 10 s |
 | No visible chat, no automation | By design; enforced by `spec/support/wow_mock.lua` | Output is `DEFAULT_CHAT_FRAME:AddMessage` + our own frames only. `RequestTimePlayed` is never called (it prints to chat); played time comes from our own session timer |
 | Protected functions we want to observe (`JumpOrAscendStart`) | `Stats:PostHook` (Collectors.lua) | `hooksecurefunc` post-hooks only: they run after Blizzard's code and can't change or block it. Never called, never replaced |

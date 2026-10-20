@@ -69,9 +69,14 @@ function Network:Add(client)
 	client.net = self
 end
 
+-- net.transform(pending) -> pending: lets a spec cut, drop, delay or
+-- reorder messages on the way, like an unreliable server.
 function Network:Flush()
 	local pending = self.pending
 	self.pending = {}
+	if self.transform then
+		pending = self.transform(pending)
+	end
 	for _, msg in ipairs(pending) do
 		local sender = msg.from:SenderName()
 		local delivered = false

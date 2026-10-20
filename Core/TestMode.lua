@@ -263,8 +263,7 @@ function TestMode:SelfTest()
 	local decoded = ns.Comm:Decode(encoded)
 	local roundtripOk = decoded and decoded.d and decoded.d.text == payload and decoded.d.n == 42 and decoded.d.flag == true
 	if roundtripOk then
-		local chunks = #encoded <= 255 and 1 or math.ceil(#encoded / 254)
-		result(true, L.SELFTEST_ROUNDTRIP:format(#encoded, chunks))
+		result(true, L.SELFTEST_ROUNDTRIP:format(#encoded, ns.Comm:CountParts(#encoded)))
 	else
 		result(false, L.SELFTEST_ROUNDTRIP_FAIL)
 	end

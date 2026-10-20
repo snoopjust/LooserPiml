@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Stats, inventory and the ranked ladder didn't reach friends.** On WoW:
+  Forever, larger addon messages arrived damaged. LooserPiml now sends them
+  as several small numbered messages and puts them back together on the
+  other side. Friends need this version too.
+
 ## v0.2.0-beta.5 (2026-10-20, pre-release)
 
 Fix for the two-player test on the megaserver.
