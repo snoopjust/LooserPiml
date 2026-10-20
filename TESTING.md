@@ -209,14 +209,16 @@ hidden addon messages. Everything with a friend is in section 3.
 
 ### 2.9 Stage C1: ranked duels (solo)
 
+Done 2026-10-20 with v0.2.0-beta.3 (dev junction): all checks passed except the sim timing and three layout points, fixed afterwards (STATUS.md, in-game results). After the fixes: check the panel height, the W – L column, the settings label and, at your normal resolution, the banner width (/lp sim duel Jo fled).
+
 - [ ] `/lp test on`, `/lp sim duel Max ranked`: a small panel "LooserPiml · ranked duel?" appears above the screen center with "[test] Your ranked record against Max: 0 – 0", buttons **Ranked** and **Just for fun**, the note "Counts as ranked only if both pick Ranked. …" and the status "Nobody picked yet." About 1 s later: "Max picked Ranked · your turn." 📸
-- [ ] Click **Ranked**: the button turns bronze, status "You both picked Ranked: this duel counts!". After about 8 s the panel closes; after 10 s a banner "[test] … <you> won a ranked duel against Max · Ranked head to head: <you> 1 – 0 Max". 📸
+- [ ] Click **Ranked**: the button turns bronze, status "You both picked Ranked: this duel counts!". The sim waits for your pick: about 5 s after it the panel closes (accept + countdown), about 2 s later a banner "[test] … <you> won a ranked duel against Max · Ranked head to head: <you> 1 – 0 Max". 📸
 - [ ] `/lp sim duel Lena fun`: Lena picks Just for fun ("Lena picked Just for fun · …"); no banner at the end. Settings › Ticker messages › "Fun duel results" on and again: a chat line "… beat Lena in a duel (just for fun)", still no banner.
 - [ ] `/lp sim duel Jo fled`: the banner ends with "(Jo fled)".
 - [ ] The panel's buttons do nothing else: no duel request, no dialog, nothing in chat. No `[Blocked action]` line.
 - [ ] Settings › Testing › "Fill with sample friends", then the **PvP** tab: subtitle "Duels between LooserPiml friends", ladder #1 Max 6 / 3 / 67 % / W3 … #4 Kim; head to head matrix with "—" on the diagonal, highlighted high values and a "W – L" column; "Ranked" / "All duels" switch the numbers; "Battlegrounds – coming later" at the bottom. 📸
 - [ ] Leaderboard: a fifth card **Duel King** (Max with sample friends, "All time"). Profiles › PvP: "Ranked duels won / lost", "All duels won / lost".
-- [ ] Settings › Ticker messages: "Ranked duel results" (on), "Fun duel results" (off), "Ask "ranked?" when dueling a LooserPiml friend" (on).
+- [ ] Settings › Ticker messages: "Ranked duel results" (on), "Fun duel results" (off), "Ask "ranked?" in duels" (on, label not cut off).
 - [ ] A duel with a stranger (anyone not on your list): no panel at all; the duel is recorded as a normal duel (`/lp debug on`: "Stats: duel recorded").
 
 ## 3. Two players: you and one friend (about 60 minutes)
@@ -279,7 +281,7 @@ targeted), the other the **challenged** (gets the game's dialog).
 - [ ] **Flee**: a ranked duel where one of you runs out of the duel area until the game ends it: the banner says "(<loser> fled)", the one who fled gets the loss on the ladder.
 - [ ] **Decline**: challenge again, both pick Ranked, the challenged clicks **Decline** in the game's dialog: both panels close at once. Then a duel without picking anything: just for fun, nothing on the ladder.
 - [ ] **No answer**: only the challenger picks Ranked, the challenged picks nothing and accepts: not ranked.
-- [ ] Settings › "Ask "ranked?" when dueling a LooserPiml friend" off on one side: that side sees no panel; the other side's panel says "<name> doesn't ask for ranked duels · just for fun." On again.
+- [ ] Settings › "Ask "ranked?" in duels" off on one side: that side sees no panel; the other side's panel says "<name> doesn't ask for ranked duels · just for fun." On again.
 - [ ] `/lp log 30` on both sides: "Duel with … closed (result)" after each duel, no `[warn]`, no `blocked`/`forbidden`. Note the order of `DUEL_FINISHED` and the result line if you see it (TODO #65).
 
 ### 3.6 Afterwards
@@ -359,5 +361,5 @@ targeted), the other the **challenged** (gets the game's dialog).
 | 66 | The duel countdown after accepting is about 3 s (`Duels.COUNTDOWN`, panel close) | Section 3.5 | |
 | 67 | `StaticPopup_FindVisible("DUEL_REQUESTED")` returns the game's duel dialog and our panel can be anchored below it | Section 3.5 (panel right below the dialog) | |
 | 68 | The game withdraws an unanswered duel request by itself (with `DUEL_FINISHED`); our 120 s safety net is never needed | Section 3.5 (let a request run out once) | |
-| 69 | Raid target icons 7 (cross) and 5 (moon) render in the duel banner / chat line | Section 2.9 | |
+| 69 | Raid target icons 7 (cross) and 5 (moon) render in the duel banner / chat line | Section 2.9 | **OK (2026-10-20)**: cross and moon render |
 | 54 | The GitHub release of a `-beta` tag is marked "Pre-release", and WowUp with Default Addon Channel = Beta installs it from the URL (with Stable it picks v0.1.0) | Section 3.1 | Release marking checked on GitHub (see STATUS.md); WowUp still open |

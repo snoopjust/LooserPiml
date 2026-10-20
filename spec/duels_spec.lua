@@ -300,4 +300,36 @@ describe("Ranked duels: handshake", function()
 		-- simulated duels are never recorded
 		assert.are.equal(0, duels(mock):GetRecord("Max-TestRealm").w)
 	end)
+
+	it("/lp sim duel waits for your pick before the duel starts", function()
+		local mock, ns = H.client({ testMode = true })
+		ns.Slash:Dispatch("sim duel Max ranked")
+		mock:Advance(20) -- read the panel at leisure
+		assert.is_true(panel(mock):IsShown())
+		assert.is_false(duels(mock).current.accepted == true)
+		click(mock, "ranked")
+		mock:Advance(1.5)
+		assert.is_true(panel(mock):IsShown()) -- accepted 2 s after the pick ...
+		mock:Advance(4)
+		assert.is_false(panel(mock):IsShown()) -- ... closed after the 3 s countdown
+		local before = #mock.rendered
+		mock:Advance(2)
+		assert.are.equal(before + 1, #mock.rendered)
+		assert.is_truthy(H.lastRendered(mock):find("won a ranked duel against Max", 1, true))
+		-- never picking: it goes on by itself after 30 s, just for fun
+		ns.Slash:Dispatch("sim duel Lena ranked")
+		mock:Advance(40)
+		assert.is_false(panel(mock):IsShown())
+		assert.are.equal(before + 1, #mock.rendered)
+	end)
+
+	it("puts the status line right below the note", function()
+		local mock, ns = H.client({ testMode = true })
+		ns.Slash:Dispatch("sim duel Max ranked")
+		local frame = panel(mock).frame
+		local point, relativeTo, relativePoint = frame.status:GetPoint(1)
+		assert.are.equal("TOPLEFT", point)
+		assert.are.equal(frame.note, relativeTo)
+		assert.are.equal("BOTTOMLEFT", relativePoint)
+	end)
 end)

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `/lp sim duel` waits for your pick before the simulated duel starts
+  (it used to close the panel after 8 s, so a late click didn't count).
+- Ranked duel panel: no more empty gap above the status line.
+- PvP tab: the "W – L" column sits right after the last player instead of
+  at the far right.
+- Settings: "Ask "ranked?" in duels" (the longer label was cut off).
+
 ## v0.2.0-beta.3 (2026-10-19, pre-release)
 
 Third beta: ranked duels, for the duel test with a friend this weekend.

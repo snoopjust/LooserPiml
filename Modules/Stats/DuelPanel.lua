@@ -16,7 +16,7 @@ local THEME = Window.THEME
 local Panel = {}
 Stats.DuelPanel = Panel
 
-Panel.WIDTH, Panel.HEIGHT = 340, 168
+Panel.WIDTH, Panel.HEIGHT = 340, 148
 Panel.CENTER_OFFSET_Y = 140 -- above the center, where the game's dialogs are not
 
 local function opponentName(cur)
@@ -54,8 +54,10 @@ function Panel:Get()
 	frame.note:SetPoint("TOPLEFT", 12, -82)
 	frame.note:SetWidth(self.WIDTH - 24)
 	frame.note:SetText(L.DUEL_NOTE)
+	-- Right below the note (its height follows the text), not at the
+	-- bottom, so there is no gap in between.
 	frame.status = Window:CreateText(frame, "GameFontHighlightSmall", THEME.gold)
-	frame.status:SetPoint("BOTTOMLEFT", 12, 10)
+	frame.status:SetPoint("TOPLEFT", frame.note, "BOTTOMLEFT", 0, -10)
 	frame.status:SetWidth(self.WIDTH - 24)
 	self.frame = frame
 	return frame

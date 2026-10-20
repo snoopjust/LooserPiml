@@ -135,6 +135,13 @@ First solo session on the Forever beta (2026-10-11):
 - Real own events (solo): death, second death ("Again" variant) and level-up work. Banner and sound work. Not yet tested: drowning, dungeon enter/leave, corpse run, restriction behaviour in real boss fights, anything with a second player.
 - **Addon whisper to yourself does not work** (server: "No player named 'X' is currently playing"). The selftest's real-transport step therefore pings a connected friend, whose client echoes it (since 2026-10-12; solo it is an info line, not a failure). Whisper delivery between friends is still to be verified with a friend.
 
+Ranked duels solo with v0.2.0-beta.3 (dev junction, test mode, 2026-10-20):
+
+- Panel, buttons (Ranked / Just for fun turn bronze, own picks loop back), status lines, ranked and fun results, "(Jo fled)", fun duel as a chat line only with the setting, PvP tab (ladder, matrix, highlights, Ranked / All duels), Duel King card, Profiles PvP rows, the three settings, "only in test mode" outside it: all as expected. Icons cross and moon render (TODO #69). `/lp log`: no warnings, no blocked actions.
+- Found and fixed: `/lp sim duel` closed the panel 8 s after the start even without a pick, so a late click didn't count and no banner came (the sim now waits for your pick); a gap in the panel between note and status; the W – L column far right with fewer than 7 players; the settings label "Ask "ranked?" when dueling…" was cut off (now "Ask "ranked?" in duels").
+- Not changed: the duel banner ran off both screen edges on a two-line text. Possibly the unusual resolution of that session; to be checked again at the normal resolution before deciding.
+- One ranked sim banner (Max) wasn't seen, the next one (Jo) was. Probably missed while the next sim's panel was open; watch in the two-player test.
+
 ## Open questions
 
 1. **Final addon name**: still the working title "LooserPiml".

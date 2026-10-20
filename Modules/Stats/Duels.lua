@@ -58,7 +58,12 @@ Duels.MAX_OPPONENTS = 40
 Duels.ID_LENGTH = 8
 Duels.CHOICES = { ranked = true, fun = true, off = true }
 Duels.ACTIONS = { ask = true, pick = true, start = true, close = true }
-Duels.SIM_FIGHT = 10 -- seconds from the request to the result in /lp sim duel
+-- /lp sim duel: seconds from your pick to the simulated accept, from the
+-- request to the accept when you never pick, and from the accept to the
+-- result (the panel closes after COUNTDOWN in between).
+Duels.SIM_ACCEPT_DELAY = 2
+Duels.SIM_NO_PICK = 30
+Duels.SIM_FIGHT = 5
 
 Duels.current = nil -- the pending duel: { opponent, role, id, mine, theirs, accepted, finished, test }
 Duels.generation = 0
@@ -305,6 +310,9 @@ function Duels:Pick(choice)
 	cur.mine = choice
 	self:Send("pick", choice)
 	Stats.DuelPanel:Refresh(cur)
+	if cur.sim then
+		self:SimAccept(cur, self.SIM_ACCEPT_DELAY)
+	end
 end
 
 -- "Both picked Ranked before the duel ended."
@@ -523,9 +531,11 @@ end
 -- Test mode: /lp sim duel <name> ranked|fun|fled
 ----------------------------------------------------------------------
 
--- A fake friend challenges you: the panel opens (pick yourself), their
--- pick arrives after 1 s ("fun": Just for fun, otherwise Ranked), the duel
--- "starts" after 5 s and you win after SIM_FIGHT s ("fled": they flee).
+-- A fake friend challenges you: the panel opens, their pick arrives after
+-- 1 s ("fun": Just for fun, otherwise Ranked). The sim waits for your own
+-- pick (or SIM_NO_PICK s without one), then "accepts" after
+-- SIM_ACCEPT_DELAY s; the panel closes after the countdown and you win
+-- SIM_FIGHT s after the accept ("fled": they flee).
 -- Nothing is recorded and nothing leaves the client.
 function Duels:Simulate(name, mode)
 	if not name then
@@ -535,38 +545,43 @@ function Duels:Simulate(name, mode)
 	local opponent = ns.Roster:Normalize(name)
 	self:End("new simulation")
 	local cur = self:Begin(opponent, "challenged", newId(), true)
+	cur.sim = { name = name, mode = mode }
 	local generation = cur.generation
-	local function alive()
-		return self.current and self.current.generation == generation
-	end
 	C_Timer.After(1, function()
-		if alive() then
+		if self.current and self.current.generation == generation then
 			ns.Comm:SimulateReceive(name, self.MSG, { a = "pick", i = cur.id, p = mode == "fun" and "fun" or "ranked" })
 		end
 	end)
-	C_Timer.After(5, function()
-		if alive() then
-			self:OnStarted()
-		end
-	end)
-	C_Timer.After(self.SIM_FIGHT, function()
-		if not alive() then
+	self:SimAccept(cur, self.SIM_NO_PICK)
+end
+
+-- The simulated accept (once per simulated duel), then the result.
+function Duels:SimAccept(cur, delay)
+	C_Timer.After(delay, function()
+		if self.current ~= cur or cur.sim.accepted then
 			return
 		end
-		local ranked = self:IsRanked(self.current)
-		self:End("simulated result")
-		local member = ns.Roster:GetMember(name)
-		local record = self:GetRecord(opponent)
-		ns.Events:Fire("LP_DUEL_RESULT", {
-			o = opponent,
-			oc = member and member.class,
-			won = true,
-			fled = mode == "fled",
-			ranked = ranked,
-			rw = record.rw + (ranked and 1 or 0),
-			rl = record.rl,
-			test = true,
-		})
+		cur.sim.accepted = true
+		self:OnStarted()
+		C_Timer.After(self.SIM_FIGHT, function()
+			if self.current ~= cur then
+				return
+			end
+			local ranked = self:IsRanked(cur)
+			self:End("simulated result")
+			local member = ns.Roster:GetMember(cur.sim.name)
+			local record = self:GetRecord(cur.opponent)
+			ns.Events:Fire("LP_DUEL_RESULT", {
+				o = cur.opponent,
+				oc = member and member.class,
+				won = true,
+				fled = cur.sim.mode == "fled",
+				ranked = ranked,
+				rw = record.rw + (ranked and 1 or 0),
+				rl = record.rl,
+				test = true,
+			})
+		end)
 	end)
 end
 

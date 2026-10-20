@@ -78,6 +78,7 @@ function Tab:Create(parent)
 	frame.ladderEmpty = textAt(frame, 44, LADDER_TOP - 18, 640, "LEFT", "GameFontHighlight", THEME.muted)
 	frame.ladderEmpty:SetText(L.PVP_LADDER_EMPTY)
 
+	frame.matrixTop = MATRIX_TOP
 	frame.matrixHeader = Window:CreateText(frame, "GameFontNormalLarge", THEME.gold)
 	frame.matrixHeader:SetPoint("TOPLEFT", 4, MATRIX_TOP)
 	frame.matrixHeader:SetText(L.PVP_HEAD_TO_HEAD)
@@ -175,6 +176,14 @@ function Tab:Refresh(frame)
 	local players = matrix.players
 	for j, header in ipairs(frame.colHeaders) do
 		header:SetText(players[j] and shortName(players[j]) or "")
+	end
+	-- The W – L column right after the last player's column.
+	local totalX = 4 + self.NAME_WIDTH + #players * self.CELL_WIDTH
+	frame.totalHeader:ClearAllPoints()
+	frame.totalHeader:SetPoint("TOPLEFT", totalX, frame.matrixTop - 26)
+	for i, widgets in ipairs(frame.matrixRows) do
+		widgets.total:ClearAllPoints()
+		widgets.total:SetPoint("TOPLEFT", totalX, frame.matrixTop - 44 - (i - 1) * self.ROW_HEIGHT)
 	end
 	if #players >= 2 then
 		frame.totalHeader:Show()

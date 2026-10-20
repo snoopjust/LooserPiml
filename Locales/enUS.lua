@@ -75,8 +75,9 @@ L.OPT_SHOW_DUEL_RANKED_TIP = "A banner when a ranked duel between LooserPiml fri
 L.OPT_SHOW_DUEL_FUN = "Fun duel results"
 L.OPT_SHOW_DUEL_FUN_TIP = "A chat line (never a banner) when a duel between LooserPiml friends ends that was just for fun."
 L.DUEL_FLED_SUFFIX = " (%s fled)"
-L.OPT_DUEL_ASK ="Ask \"ranked?\" when dueling a LooserPiml friend"
-L.OPT_DUEL_ASK_TIP = "Shows a small panel next to the game's duel dialog where you both pick Ranked or Just for fun. Off: your duels always count as just for fun."
+-- Short: longer labels are cut off in the settings panel (seen in-game).
+L.OPT_DUEL_ASK = "Ask \"ranked?\" in duels"
+L.OPT_DUEL_ASK_TIP = "When you duel a LooserPiml friend, shows a small panel next to the game's duel dialog where you both pick Ranked or Just for fun. Off: your duels always count as just for fun."
 
 L.OPT_SECTION_BANNER = "Banner"
 L.OPT_BANNER_HOLD = "Display time"

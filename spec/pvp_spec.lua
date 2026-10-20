@@ -162,6 +162,12 @@ describe("Ranked duels: banner, tab, settings", function()
 			assert.are.equal("2", frame.matrixRows[index("Lena")].cells[index("Max")].text_)
 			frame.modeButtons[1]:Click()
 			assert.are.equal("1", frame.matrixRows[index("Lena")].cells[index("Max")].text_)
+			-- W – L right after the fourth player's column, not after seven
+			local tab = stats(mock).PvPTab
+			local _, x = frame.totalHeader:GetPoint(1) -- SetPoint("TOPLEFT", x, y)
+			assert.are.equal(4 + tab.NAME_WIDTH + 4 * tab.CELL_WIDTH, x)
+			local _, rowX = frame.matrixRows[1].total:GetPoint(1)
+			assert.are.equal(x, rowX)
 		end)
 
 		it("shows hints when there are no duels yet", function()
