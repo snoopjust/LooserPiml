@@ -42,15 +42,16 @@ Stats.Duels = Duels
 
 Duels.MSG = "DUEL"
 -- Seconds between accepting and the fight. The game counts down 3 s before
--- a duel starts; there is no event for the start itself, so the panel
--- stays open for the countdown after the accept. TODO(verify in-game)
+-- a duel starts ("Duel starting: 3 / 2 / 1", seen in-game 2026-10-20);
+-- there is no event for the start itself, so the panel stays open for the
+-- countdown after the accept.
 Duels.COUNTDOWN = 3
 -- DUEL_FINISHED and the result line (CHAT_MSG_SYSTEM) come close together;
 -- their order is TODO(verify in-game), so the choice waits this long.
 Duels.RESULT_GRACE = 5
--- An unanswered request: the game withdraws it after a while by itself
--- (DUEL_FINISHED); this is only the safety net if that event is missed.
--- TODO(verify in-game): the game's own timeout.
+-- An unanswered request: Blizzard's duel dialog times out after 60 s
+-- (StaticPopupTimeoutSec) and calls CancelDuel, like Decline and Escape, so
+-- our CancelDuel post-hook closes the panel; this is only the safety net.
 Duels.REQUEST_TIMEOUT = 120
 Duels.MAX_RANKED = 200 -- own ranked duels kept
 Duels.MAX_SYNC = 60    -- ... and sent with STATS (newest first)
@@ -340,10 +341,11 @@ end
 -- What the player and the game do
 ----------------------------------------------------------------------
 
--- StartDuel(unit or name): unit menu "Duel", /duel <name> or /duel with a
--- target. Unit names can be secret; then we simply don't know the
--- opponent and wait for their client's ask instead.
--- TODO(verify in-game): which argument the unit menu and /duel pass.
+-- StartDuel(unit or name [, exactMatch [, toTheDeath]]). Blizzard's Forever
+-- UI code (1.60.1): the unit menu calls StartDuel(unit, true), /duel calls
+-- StartDuel(msg) with a name or "" (= target), and a duel to the death
+-- (hardcore) StartDuel(unit, true, true). Unit names can be secret; then we
+-- don't know the opponent and wait for their client's ask instead.
 function Duels:ResolveTarget(arg)
 	if arg == nil or arg == "" then
 		arg = "target"
@@ -365,7 +367,13 @@ function Duels:ResolveTarget(arg)
 	return cleanName(arg) and ns.Friends:Resolve(arg)
 end
 
-function Duels:OnStartDuel(arg)
+-- Duels to the death are left alone: the challenged side gets
+-- DUEL_TO_THE_DEATH_REQUESTED, not DUEL_REQUESTED, so there would never be
+-- an answer to a ranked question.
+function Duels:OnStartDuel(arg, toTheDeath)
+	if toTheDeath then
+		return
+	end
 	local opponent = self:ResolveTarget(arg)
 	if not opponent or not self:IsAsking() or not ns.Friends:IsConnected(opponent) then
 		return
@@ -376,8 +384,9 @@ function Duels:OnStartDuel(arg)
 	self:Begin(opponent, "challenger", nil)
 end
 
--- DUEL_REQUESTED: payload is the challenger's name ("Name" on our realm).
--- TODO(verify in-game): name format and that it is never secret.
+-- DUEL_REQUESTED: payload playerName (cstring, Forever API docs). On the
+-- megaserver probably "First Surname" like the result line; Resolve also
+-- takes a bare first name. TODO(verify in-game): the exact shape.
 function Duels:OnDuelRequested(_, name)
 	if type(name) ~= "string" or ns.IsSecret(name) then
 		return
@@ -641,8 +650,8 @@ function Duels:Enable()
 	end)
 	-- Post-hooks only: they run after Blizzard's function, can't change or
 	-- block it, and we never call these functions ourselves.
-	Stats:PostHook("StartDuel", function(arg)
-		self:OnStartDuel(arg)
+	Stats:PostHook("StartDuel", function(arg, _, toTheDeath)
+		self:OnStartDuel(arg, toTheDeath == true)
 	end)
 	Stats:PostHook("AcceptDuel", function()
 		self:OnAcceptDuel()

@@ -66,8 +66,9 @@ end
 -- Below Blizzard's duel dialog when it is shown, else near the center.
 -- Anchoring our own frame to theirs doesn't change their frame; pcall in
 -- case the client refuses the anchor (it then falls back to the center).
--- TODO(verify in-game): StaticPopup_FindVisible("DUEL_REQUESTED") finds the
--- dialog on Forever.
+-- StaticPopup_FindVisible(which) exists in Forever's UI code and Blizzard's
+-- "DUEL_REQUESTED" dialog is a StaticPopup; TODO(verify in-game) that the
+-- anchor looks right.
 function Panel:Anchor(frame)
 	frame:ClearAllPoints()
 	local popup = StaticPopup_FindVisible and StaticPopup_FindVisible("DUEL_REQUESTED")

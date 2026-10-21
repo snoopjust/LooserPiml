@@ -192,6 +192,19 @@ describe("Ranked duels: handshake", function()
 		assert.are.equal(0, duels(me):GetRecord("Max-TestRealm").rw)
 	end)
 
+	it("leaves duels to the death alone (no panel, no message)", function()
+		local me, max, net = pair()
+		me:UserAction(function()
+			me.env.StartDuel("Max", true, true) -- Blizzard's death-duel confirm dialog
+		end)
+		max:Fire("DUEL_TO_THE_DEATH_REQUESTED", "Me")
+		net:Advance(1)
+		assert.is_false(panel(me):IsShown() == true)
+		assert.is_false(panel(max):IsShown() == true)
+		assert.are.equal(0, #duelMessages(me))
+		assert.are.equal(0, #duelMessages(max))
+	end)
+
 	it("opens the challenger's panel from the friend's ask when the hook missed the request", function()
 		local me, max, net = pair()
 		max:DuelRequested("Me") -- Me challenged through a path our hook didn't see
