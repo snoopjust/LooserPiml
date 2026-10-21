@@ -434,6 +434,21 @@ local function isDuplicate(sender, envelope)
 end
 
 Comm.partial = {} -- sender .. "/" .. id -> { parts = {}, count, total, at, sender }
+Comm.warned = {}  -- friend .. "|" .. kind -> true (one visible hint per session)
+
+-- A visible chat line (no debug mode needed) the first time a friend's
+-- message arrives damaged ("damaged") or incomplete ("parts") this
+-- session. Transport on the live servers couldn't be fully tested before
+-- launch; this way friends notice on the first evening and know what to
+-- run, instead of just seeing empty tabs.
+function Comm:WarnDelivery(full, kind)
+	local id = full .. "|" .. kind
+	if self.warned[id] then
+		return
+	end
+	self.warned[id] = true
+	ns.Log:Print(kind == "parts" and ns.L.COMM_INCOMPLETE or ns.L.COMM_DAMAGED, ns.Roster:ColorName(full))
+end
 
 -- Drops incomplete messages older than PART_TIMEOUT, saying what was
 -- missing (the in-game diagnosis for lost parts).
@@ -448,6 +463,7 @@ function Comm:PrunePartial(now)
 			end
 			ns.Log:Debug("Incomplete message from %s: %d of %d parts arrived, missing %s", msg.sender, msg.count, msg.total, table.concat(missing, ","))
 			self.partial[key] = nil
+			self:WarnDelivery(msg.sender, "parts")
 		end
 	end
 end
@@ -541,6 +557,9 @@ function Comm:Receive(text, sender, distribution, isTest)
 	local envelope, err = self:Decode(text)
 	if not envelope then
 		ns.Log:Debug("Unreadable message from %s (%s)", fullSender, err)
+		if not isTest and not fromSelf then
+			self:WarnDelivery(fullSender, "damaged")
+		end
 		return
 	end
 	if type(envelope.t) ~= "string" or type(envelope.v) ~= "number" then

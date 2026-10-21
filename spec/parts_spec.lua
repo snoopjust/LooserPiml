@@ -118,6 +118,40 @@ describe("Large messages as numbered parts", function()
 		assert.is_true(found, "no 'Incomplete message' log line")
 	end)
 
+	it("tells the player once, without debug mode, when a friend's messages arrive incomplete or damaged", function()
+		local me, max, net = pair()
+		net.transform = function(pending)
+			local out = {}
+			for _, msg in ipairs(pending) do
+				if not msg.text:find("^LPP%w+:2/") then
+					out[#out + 1] = msg
+				end
+			end
+			return out
+		end
+		bigStats(me)
+		for _ = 1, 2 do
+			stats(me):Changed()
+			net:Advance(100)
+		end
+		local function count(fragment)
+			local n = 0
+			for _, line in ipairs(max.chat) do
+				if line:find(fragment, 1, true) then
+					n = n + 1
+				end
+			end
+			return n
+		end
+		assert.are.equal(1, count("arrived incomplete and was skipped"))
+		assert.is_true(max:ChatContains("/lp selftest"))
+		-- a damaged single message: its own hint, also once
+		for _ = 1, 3 do
+			max:Fire("CHAT_MSG_ADDON", "LPiml", "not a LooserPiml message", "WHISPER", "Me", "Me", 0, 0, "", 0)
+		end
+		assert.are.equal(1, count("arrived damaged and was skipped"))
+	end)
+
 	it("ignores parts from players who aren't on the list", function()
 		local mock, ns = H.client({ friends = { "Max" } })
 		ns.Comm:OnCommReceived("LPiml", "LPP1a:1/2:abc", "WHISPER", "Stranger")

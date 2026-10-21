@@ -199,6 +199,10 @@ L.VERSION_OLDER = "%s runs an older LooserPiml (%s, you have %s). Tell them to u
 L.VERSION_NEWER = "%s has a newer LooserPiml (%s). Please update in WowUp."
 L.VERSION_INCOMPATIBLE = "%s runs LooserPiml %s, which uses a different message format. Ticker events between you are ignored until you both update."
 
+-- Delivery problems (visible once per friend and session) ----------------
+L.COMM_DAMAGED = "A message from %s arrived damaged and was skipped. If their stats, inventory or duels stay empty, both of you type /lp selftest and compare the results."
+L.COMM_INCOMPLETE = "A message from %s arrived incomplete and was skipped. If their stats, inventory or duels stay empty, both of you type /lp selftest and compare the results."
+
 -- Self-test -----------------------------------------------------------
 L.SELFTEST_HEADER = "Self-test:"
 L.SELFTEST_OK = "|cff00ff00[OK]|r %s"
