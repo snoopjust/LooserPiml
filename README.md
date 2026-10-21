@@ -72,21 +72,30 @@ install it like the manual install above.
 
 ## Usage
 
-One thing to set up: **add your friends**, twice.
+One thing to set up: **add your friends**.
 
-1. On the **WoW friends list** (Social › Friends › Add Friend), so
-   LooserPiml can see when they are online, also when you're not grouped.
-2. On the **LooserPiml friends list**: minimap button › tab **Friends**,
-   by name, from your group or from your WoW friends list. Ask them to add
-   you too.
+1. **Group up** with them once and add them on the **LooserPiml friends
+   list**: minimap button › tab **Friends** › "Add from group" (or type
+   "First Surname"). Ask them to add you too.
+2. Also add them on the **WoW friends list** (Social › Friends › Add
+   Friend) if the game lets you.
+
+**For now: group up to connect.** LooserPiml can only tell that a friend
+is online if you're in a group with them, or if they're on your WoW friends
+list. On the Forever beta the WoW friends list didn't work between all
+players, so until that's confirmed on the live servers, connect while
+grouped. You still play wherever you like: the group just has to exist.
 
 LooserPiml shares nothing with anyone who isn't on your list or hasn't
-added you. Once you're connected, your friends' events show up as a banner
-in the middle of the screen and as a line in your chat window (only you
-see it), wherever they are playing.
+added you. Once you're connected (Friends tab: "connected"), your friends'
+events show up as a banner in the middle of the screen and as a line in
+your chat window (only you see it).
+
+If LooserPiml says a friend's message "arrived damaged" or "incomplete",
+both of you type `/lp selftest` and compare what it says.
 
 - **Minimap button** (the skull): left-click opens the LooserPiml window
-  (tabs Leaderboard, Tonight, Inventory, Profiles, Friends), right-click
+  (tabs Leaderboard, Tonight, Inventory, Profiles, PvP, Friends), right-click
   opens the settings, drag moves it. Hover it for friends online, deaths tonight and
   the current Death King.
 - **Settings**: Esc › Options › AddOns › LooserPiml. Your friends list

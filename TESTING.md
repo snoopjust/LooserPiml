@@ -172,7 +172,7 @@ hidden addon messages. Everything with a friend is in section 3.
 - [ ] Right after login with an empty list: one chat line "Your LooserPiml friends list is empty ...". Joining a group later doesn't repeat it.
 - [ ] Minimap button › window › tab **Friends**: explanation text, "Add by name", "Add from group", "Add from WoW friends" (with the hint to be WoW friends too), "Your list (0/40)", "Nobody yet".
 - [ ] "Add from WoW friends" shows your WoW friends who aren't listed yet, online ones first (offline ones grey). Clicking one adds them.
-- [ ] Type a name and press Enter or "Add": it appears in the list with its class color if known, status "offline (or not on your WoW friends list)". "Remove" takes it off again.
+- [ ] Type a name and press Enter or "Add": it appears in the list with its class color if known, status "offline, or not grouped with you (group up to connect)". "Remove" takes it off again.
 - [ ] Invalid input ("123", "a b") shows "That is not a character name"; your own name shows "That is you"; a second add shows "already on your list".
 - [ ] Esc › Options › AddOns › LooserPiml: section "LooserPiml friends" with a "Manage" button that opens the subpage **Friends** (same list, same buttons). Typing in its edit box works (no key bindings fire while typing); Esc leaves the box.
 - [ ] `/reload`: the list is still there.

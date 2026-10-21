@@ -132,7 +132,7 @@ describe("LooserPiml friends", function()
 			ns.Window:Open("friends")
 			local frame = ns.Window.frame.tabFrames.friends
 			assert.is_true(H.hasText(frame, "Add from WoW friends"))
-			assert.is_true(H.hasText(frame, "Add each other on the WoW friends list too"))
+			assert.is_true(H.hasText(frame, "group up to be sure"))
 			local offered, labels = {}, {}
 			for _, button in ipairs(frame.fromWoW.buttons) do
 				if button.shown and button.member then
