@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-20 (stage C1: ranked duels between LooserPiml friends, PvP tab, Duel King; solo test done, v0.2.0-beta.4 with the fixes for the duel test with a friend, before the beta ends on 22 Oct)_
+_Last updated: 2026-10-21 (the Forever beta is over; v0.2.0 is prepared for launch on 4 Nov without a full two-player test: friends group up to connect for now, delivery problems show a hint, launch-day and first-evening checklists in TESTING.md sections 4 and 5)_
 
 ## Done
 
@@ -157,17 +157,17 @@ With beta.5 both got "connected" (grouped). A ranked duel worked end to end on t
 2. Results of the in-game checks (TESTING.md). In particular whether regular dungeons are "communication-restricted maps" (TODO #7). If they are, every dungeon event is delivered only after leaving. Then we should decide whether that's acceptable.
 3. **Account bank**: the account-wide bank tabs are not shared (they belong to the whole account, not to the character). Include them?
 4. **"First to die in a dungeon"** compares the zone of friends' deaths with the instance name (TODO #60). If Forever reports a different zone inside instances, it would count too often.
-5. **Ranked duels, in-game unknowns** (TODO #63–68): whether the `StartDuel` post-hook sees the unit menu and `/duel`, the order of `DUEL_FINISHED` and the result line, the countdown length. All have fallbacks (the friend's ask, a 5 s grace, closing on the accept + 3 s).
+5. **Ranked duels, still open in-game** (TODO #63–68, most answered by Blizzard's Forever UI code or the 2026-10-20 duel): the exact name shape in `DUEL_REQUESTED`, the order of `DUEL_FINISHED` and the result line, where the panel sits below the dialog. All have fallbacks (Resolve, a 5 s grace, center position).
 
 Resolved 2026-10-12: chests are a separate counter (not gathered); communication only with the explicit, mutual friends list (no Battle.net); "tonight" starts at 06:00; stats at most every 30 s; the circle of friends is the core unit, ticker events reach all connected friends (whisper-only transport).
 
 ## Next steps
 
-0. **Plan (2026-10-20):** one more two-player session on 21 Oct if possible (beta.6: `/lp selftest` both ways, ranked duel → ladder on both sides, inventory). If it doesn't happen, v0.2.0 is prepared for launch without that confirmation; the open TODOs (#5/#71 parts, #63–68 duel details, #48 friends list across realms) then get checked in the first launch evening.
-1. **Two-player test with v0.2.0-beta.6** (both on the same version; beta.5 fixed the megaserver names, beta.6 the large messages) this weekend, before the Forever beta ends on 22 Oct (pre-release; TESTING.md section 3 incl. the new duel block 3.5, plus 2.6–2.9 and TODO #26–69), then decide whether to tag **v0.2.0**. Every friend has to add the others to their WoW friends list and their LooserPiml friends list first.
-2. Remaining v0.1.0 checks: sections 2.4/2.5 (drowning, dungeons, restrictions) and section 3 with a friend; WowUp install on a friend's PC (TODO #22).
-3. Stage C next: battleground stats in the PvP tab (placeholder is there; the data is already collected).
-4. Next modules, all built on Core (Comm handlers, `DB:GetModuleDB`, Roster, TestMode sims, Slash, Options, Window tabs):
+1. **Launch day** (TESTING.md section 4): check the interface number and client folder, then tag **v0.2.0** as a normal release (decided 2026-10-21); friends switch WowUp back to Stable.
+2. **First live evening** (TESTING.md section 5): grouped, `/lp selftest` both ways (TODO #71), a ranked duel → ladder on both sides, inventory. Then decide whether "group up to connect" can go (TODO #48) or a fallback for friends who aren't grouped is needed.
+3. Remaining checks from the beta plan (on the live servers): sections 2.4/2.5 (drowning, dungeons, restrictions) and section 3 with a friend; WowUp install on a friend's PC (TODO #22).
+4. Stage C next: battleground stats in the PvP tab (placeholder is there; the data is already collected).
+5. Next modules, all built on Core (Comm handlers, `DB:GetModuleDB`, Roster, TestMode sims, Slash, Options, Window tabs):
    - **Profession Directory**: each client shares its own professions and known recipes once per session or when they change. "Who can craft X?" lookup. Read-only, no automation of crafting.
    - **Friends' bets**: bets on Ticker events ("Max dies before level 20"). Purely social bookkeeping. No gold handling or trade automation; settling is manual between friends. Needs a conflict-free shared state (owner-authoritative per bet).
-5. Later: more Ticker events (e.g. first kill of a boss, from the recorded `encounter` events).
+6. Later: more Ticker events (e.g. first kill of a boss, from the recorded `encounter` events).

@@ -6,6 +6,9 @@ There are three levels:
 2. **In-game solo** with one account: test mode, simulations and `/lp selftest`.
 3. **Two players**: you and one friend, first not grouped, then in a dungeon.
 
+The beta ended before level 3 was done. Sections 4 (launch day) and 5
+(first live evening) are the short version for launch.
+
 Anything that can't be verified offline is marked `TODO(verify in-game)` in
 the code. All of these are collected at the end of this file. Tick them off
 (or note what happened) as you test.
@@ -292,6 +295,31 @@ targeted), the other the **challenged** (gets the game's dialog).
 
 ---
 
+## 4. Launch day (you, before friends install, 15 min)
+
+The Forever beta ended on 2026-10-21 before a full two-player test, so the
+first live evening is the real test. Before tagging v0.2.0:
+
+- [ ] Start the live client once. `/dump select(4, GetBuildInfo())`: if it isn't **16001**, put the new number into `## Interface:` in `LooserPiml.toc` (TODO #1).
+- [ ] Note the live client folder (TODO #2). Run `tools\link-addon.ps1` for it so the dev junction points at the repo.
+- [ ] Log in with the dev junction: no Lua error, `/lp` prints the help, the minimap button and window open, `/lp test on` + `/lp sim duel Max ranked` shows the panel.
+- [ ] Tag **v0.2.0** (normal release, not a pre-release; decided 2026-10-21). Check the release on GitHub: zip with `## Version: v0.2.0`, `release.json`.
+- [ ] Friends: WowUp › Options › WoW: Forever › Default Addon Channel back to **Stable**, then Check for Updates (or the zip by hand). README "For friends: install".
+
+## 5. First live evening with a friend (10 min)
+
+Grouped (that's the setup for launch: "group up to connect"). Both
+`/lp debug on`.
+
+- [ ] Add each other from the group (Friends tab › "Add from group"). Within about 10 s: **connected** on both sides. 📸
+- [ ] `/lp selftest` on **both** sides: `[OK] Real transport: echo … payload intact` (TODO #71). If not: 📸 the lines and `/lp log 30` of both, and stop here: stats, inventory and the ladder need this.
+- [ ] One ranked duel (both pick Ranked): banner on both sides; after about 30 s the duel is on the **ladder on both sides** (PvP tab) and Duel King on the Leaderboard. 📸
+- [ ] Inventory tab: you see each other's bags within about 30 s.
+- [ ] No chat line "arrived damaged" or "arrived incomplete" during the evening. If one appears: `/lp log 30` on both sides, 📸.
+- [ ] Bonus: leave the group. Does "connected" stay? Add each other on the WoW friends list and check again (TODO #48). If it works, the "group up to connect" hint can go.
+
+---
+
 ## TODO(verify in-game): open items
 
 | # | What | How to check | Result |
@@ -300,7 +328,7 @@ targeted), the other the **challenged** (gets the game's dialog).
 | 2 | Client folder name `_classic_beta_` (beta). Launch name? | Look in the WoW folder after launch | |
 | 3 | LibStub, CallbackHandler, AceComm r14 + ChatThrottleLib v32, AceSerializer, LibDeflate load on Forever | `/lp selftest` step 1, no Lua errors | **OK (2026-10-11)**: CallbackHandler r8, AceComm r14, AceSerializer r5, LibDeflate r3 loaded, roundtrip OK |
 | 4 | Addon whisper to yourself (incl. multi-chunk) is delivered | `/lp selftest` | **No (2026-10-11)**: server answers "No player named 'X' is currently playing" per chunk. The self-test now pings a connected friend, who echoes it (see #5) |
-| 5 | WHISPER addon messages arrive between friends who are not grouped (incl. multi-chunk) | Section 3.3 (self-test, ticker, stats) | |
+| 5 | WHISPER addon messages arrive between friends who are not grouped (incl. multi-chunk) | Section 3.3 (self-test, ticker, stats) | **2026-10-20 (grouped):** single messages OK both ways; AceComm multi-part messages arrived damaged ("bad compression") → replaced by our own parts (#71). Not grouped: not tested (WoW friends list failed across realms, #48) |
 | 6 | During boss encounters: `InChatMessagingLockdown()` is true and/or sends return `AddOnMessageLockdown` (11); messages sent then are dropped, not delayed by the server | Section 3.4, debug log ("refused by the client") | |
 | 7 | Are regular dungeons (outside encounters) a "communication-restricted map"? If yes, all dungeon messages are delayed until you leave | `/dump C_ChatInfo.InChatMessagingLockdown()` inside a dungeon | |
 | 8 | `ADDON_RESTRICTION_STATE_CHANGED` exists on Forever and fires Inactive (0) when restrictions end | `/lp selftest` APIs line (`RestrictionEvent=`), debug log | Event exists (2026-10-11). Firing on lift: still open |
@@ -343,7 +371,7 @@ targeted), the other the **challenged** (gets the game's dialog).
 | 45 | Gathering casts: spells 2366 "Herb Gathering", 2575 "Mining", 8613 "Skinning" exist; gathering fires `UNIT_SPELLCAST_SUCCEEDED` (not secret) shortly before `LOOT_OPENED`; `GetNumLootItems`/`GetLootSlotInfo` (7th return `isQuestItem`) work | Section 2.6 (gathering, chests) | |
 | 46 | The whisper target "Name" (without realm) works for the own realm; AceComm reports the sender of a whisper as "Name" | Section 3.3 | |
 | 47 | `UnitIsConnected` reports offline group members; `UNIT_CONNECTION` fires when they go offline/come back | A friend logs out while grouped: no "No player named" line on your side | |
-| 48 | `FRIENDLIST_UPDATE` fires when a character friend logs in/out; `C_FriendList.GetFriendInfo("Name")` works for the own realm | Section 2.7 (not grouped, on each other's friends list) | |
+| 48 | `FRIENDLIST_UPDATE` fires when a character friend logs in/out; `C_FriendList.GetFriendInfo("Name")` works for the own realm | Section 2.7 (not grouped, on each other's friends list) | **2026-10-20:** the WoW friends list couldn't add a friend from "Classic Beta PvE 2" while on "Classic Beta PvE"; hence "group up to connect" for launch. Live servers: check again (section 5) |
 | 49 | Settings subpage via `Settings.RegisterCanvasLayoutSubcategory` renders; `Settings.OpenToCategory(subcategory:GetID())` opens it; plain `EditBox` + `BackdropTemplate` takes typing | Section 2.7 (solo) | |
 | 50 | Cross-realm friends ("Name-Realm") on Forever: whisper and friends-list lookup work, if Forever has connected realms at all | Only if a friend plays on another realm | |
 | 51 | Nothing reaches a player who isn't on the list: a non-listed LooserPiml user in the group receives nothing (their debug log stays silent about you) | Section 2.7 (stranger with LooserPiml) | |
@@ -357,12 +385,12 @@ targeted), the other the **challenged** (gets the game's dialog).
 | 60 | Inside a dungeon, a friend's death message names the instance as its zone (for "first to die in a dungeon") | Section 3.4 | |
 | 61 | `GetProfessions`/`GetProfessionInfo` return name and skill level (profile professions) | Section 2.8 (profiles) | |
 | 62 | The evening recap window appears on the first login after 06:00 and only once | Section 2.8 (tonight, next day) | |
-| 63 | `DUEL_REQUESTED` fires on the challenged side with the challenger's name ("Name" on the own realm), not secret | Section 3.5 (panel opens on the challenged side) | |
-| 64 | Post-hooks on `StartDuel` (unit menu "Duel", `/duel`; argument unit token or name), `AcceptDuel` and `CancelDuel` (dialog buttons) fire and cause no blocked action | Section 3.5 (challenger's panel opens at once, not only after the friend's ask; panels close on accept/decline) | |
+| 63 | `DUEL_REQUESTED` fires on the challenged side with the challenger's name ("Name" on the own realm), not secret | Section 3.5 (panel opens on the challenged side) | **In-game 2026-10-20:** fired and the panel opened on the challenged side (name shape not logged; `Friends:Resolve` takes "First Surname" or the first name) |
+| 64 | Post-hooks on `StartDuel` (unit menu "Duel", `/duel`; argument unit token or name), `AcceptDuel` and `CancelDuel` (dialog buttons) fire and cause no blocked action | Section 3.5 (challenger's panel opens at once, not only after the friend's ask; panels close on accept/decline) | **Source (Forever UI 1.60.1):** unit menu `StartDuel(unit, true)`, `/duel` `StartDuel(msg)`, death duel `StartDuel(unit, true, true)`; dialog Accept → `AcceptDuel()`, Decline/Escape/timeout → `CancelDuel()`. **In-game 2026-10-20:** a ranked duel worked (no blocked action). Whether the challenger's panel opened before the friend's ask: not noted |
 | 65 | `DUEL_FINISHED` fires on decline, withdraw, timeout and after the duel; it comes within 5 s of the result line (`RESULT_GRACE`), in either order | Section 3.5, debug log | |
-| 66 | The duel countdown after accepting is about 3 s (`Duels.COUNTDOWN`, panel close) | Section 3.5 | |
-| 67 | `StaticPopup_FindVisible("DUEL_REQUESTED")` returns the game's duel dialog and our panel can be anchored below it | Section 3.5 (panel right below the dialog) | |
-| 68 | The game withdraws an unanswered duel request by itself (with `DUEL_FINISHED`); our 120 s safety net is never needed | Section 3.5 (let a request run out once) | |
+| 66 | The duel countdown after accepting is about 3 s (`Duels.COUNTDOWN`, panel close) | Section 3.5 | **OK (2026-10-20):** "Duel starting: 3 / 2 / 1" |
+| 67 | `StaticPopup_FindVisible("DUEL_REQUESTED")` returns the game's duel dialog and our panel can be anchored below it | Section 3.5 (panel right below the dialog) | **Source:** the function and the "DUEL_REQUESTED" StaticPopup exist. Where the panel sits: open (section 5) |
+| 68 | The game withdraws an unanswered duel request by itself (with `DUEL_FINISHED`); our 120 s safety net is never needed | Section 3.5 (let a request run out once) | **Source:** the dialog times out after 60 s (`StaticPopupTimeoutSec`) and calls `CancelDuel`, which closes our panel |
 | 69 | Raid target icons 7 (cross) and 5 (moon) render in the duel banner / chat line | Section 2.9 | **OK (2026-10-20)**: cross and moon render |
 | 71 | Large messages as our own numbered parts (STATS with duels, inventory, self-test) arrive complete between two players; no "Incomplete message" or "bad compression" lines | `/lp selftest` both ways, section 3.5 (ladder after a ranked duel), 3.3b (inventory) | AceComm's multi-part messages arrived damaged (2026-10-20, "bad compression"), hence the parts |
 | 70 | Megaserver names: UnitName = first name + surname in the realm slot, addon senders "First Surname", whispers to "First-Surname" delivered | Section 3.2 | **Seen 2026-10-20** (that's why the friends never connected before the fix). Still open: the name shape in duel messages, `DUEL_REQUESTED` and `C_FriendList`; a visible `/w Headdleonty-Kneadmetal` arrives too (2026-10-20); whether two friends connect without a group (WoW friends list across "Classic Beta PvE" / "PvE 2") |

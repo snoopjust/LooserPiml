@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **For now: group up to connect.** On the Forever beta the WoW friends
+  list didn't work between all players, so LooserPiml couldn't tell that a
+  friend outside your group was online. The Friends tab and the README now
+  say so. Friends on each other's WoW friends list still connect without a
+  group if the game allows it.
+
+### Fixed
+
+- If a friend's message arrives damaged or incomplete, a chat line says so
+  (once per friend and evening) and suggests `/lp selftest`, instead of
+  tabs silently staying empty.
+- Duels to the death (hardcore) no longer open the "ranked duel?" panel on
+  the challenger's side.
+
 ## v0.2.0-beta.6 (2026-10-20, pre-release)
 
 Fix for larger messages between friends, found in the two-player test.
