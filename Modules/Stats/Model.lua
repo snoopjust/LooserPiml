@@ -382,7 +382,7 @@ end
 
 -- Counters whose "when" is needed by others (award tie-breaks). Sending
 -- every timestamp would roughly double the message size for nothing.
-Model.TIE_KEYS = { "deaths", "drowned", "levelTime", "levelUps", "quests" }
+Model.TIE_KEYS = { "deaths", "drowned", "levelTime", "levelUps", "quests", "deathsInEncounter", "jumps" }
 
 -- Copy of an aggregate for the network: timestamps only for TIE_KEYS.
 function Model.ForSync(agg)

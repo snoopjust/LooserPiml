@@ -186,6 +186,18 @@ L.AWARD_FISH_FOOD = "Fish Food"
 L.AWARD_GOLD_HOARDER = "Gold Hoarder"
 L.AWARD_SPEEDRUNNER = "Speedrunner"
 L.AWARD_DUEL_KING = "Duel King"
+L.HALL_OF_SHAME = "Hall of Shame"
+L.HALL_FAME_BUTTON = "Fame"
+L.HALL_SHAME_BUTTON = "Shame"
+L.SHAME_BROKE = "Broke"
+L.SHAME_NOOB = "Noob"
+L.SHAME_LOOSERPIML = "LooserPiml"
+L.SHAME_SLOWPOKE = "Slowpoke"
+L.SHAME_BOSS_SNACK = "Boss Snack"
+L.SHAME_KANGAROO = "Kangaroo"
+L.SHAME_RECORD = "%s ranked"
+L.LOOSERPIML_BADGE = "|cffd04848LooserPiml|r"
+L.TOOLTIP_LOOSERPIML = "LooserPiml: %s"
 L.NO_ONE_YET = "No one yet"
 L.YOU_SUFFIX = "(you)"
 L.OFFLINE_SUFFIX = "(offline)"
@@ -231,6 +243,9 @@ L.EARLIER = "Earlier: %s"
 L.HELD_MORE = "... and %d more (see chat)"
 
 L.TICKER = {
+	looserpiml = {
+		"{name} is the new LooserPiml!",
+	},
 	duel_ranked = {
 		"{name} won a ranked duel against {opponent}{fled} · Ranked head to head: {name} {wins} – {losses} {opponent}",
 	},

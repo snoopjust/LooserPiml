@@ -173,8 +173,8 @@ end
 -- Everyone on the leaderboard for a period: me, listed friends who
 -- answered a handshake at least once (online or not), and (in test mode)
 -- sample friends. { name, class, agg, isSelf, online, lastSeen, gold, duel,
--- rankedWins }; rankedWins = confirmed ranked duel wins in the period
--- (Ladder.Annotate).
+-- level, rankedWins }; rankedWins = confirmed ranked duel wins in the
+-- period (Ladder.Annotate); level = current level (Noob).
 function Stats:GetParticipants(period)
 	local list = {
 		{
@@ -185,6 +185,7 @@ function Stats:GetParticipants(period)
 			online = true,
 			gold = self:GetSharedGold(),
 			duel = self.Duels:Own(),
+			level = ns.PlayerEvents:GetLevel(),
 		},
 	}
 	for name, entry in pairs(ns.Friends:GetDB()) do
@@ -199,6 +200,7 @@ function Stats:GetParticipants(period)
 				version = entry.version,
 				gold = cached and cached.gold,
 				duel = cached and cached.duel,
+				level = cached and cached.level,
 			}
 		end
 	end
@@ -212,6 +214,7 @@ function Stats:GetParticipants(period)
 				lastSeen = friend.lastSeen,
 				gold = friend.gold,
 				duel = friend.duel,
+				level = friend.level,
 				fake = true,
 			}
 		end
@@ -248,6 +251,9 @@ function Stats:FillSampleFriends()
 	self.fakeFriends = {}
 	for i, member in ipairs(ns.TestMode.FAKE_MEMBERS) do
 		local rand = sampleRandom(i * 7919)
+		-- A second generator for the Hall of Shame counters, so the values
+		-- above stay what they were.
+		local shame = sampleRandom(i * 104729)
 		local stats = {}
 		for _, period in ipairs(Model.PERIODS) do
 			local scale = period == "tonight" and 1 or (period == "week" and 4 or 15)
@@ -262,6 +268,8 @@ function Stats:FillSampleFriends()
 			Model.Add(agg, "levelTimeCount", levels, t)
 			Model.Add(agg, "levelTime", levels * rand(1200, 4800), t)
 			agg.moneyIn.loot = agg.n.moneyLooted
+			Model.Add(agg, "jumps", shame(20, 400) * scale, t)
+			Model.Add(agg, "deathsInEncounter", shame(0, 2) * scale, t)
 			stats[period] = agg
 		end
 		local name = ns.Roster:Normalize(member.name)

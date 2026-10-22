@@ -214,7 +214,9 @@ function Panel:Refresh(frame)
 				name = name .. " |cff999999-" .. realm:gsub("|", "||") .. "|r"
 			end
 			row.name:SetText(short and name or friend.name)
-			row.status:SetText(Friends:StatusText(friend))
+			-- Badges (the LooserPiml title) go with the status: the name
+			-- column is full with "First -Surname" on the megaserver.
+			row.status:SetText(Friends:StatusText(friend) .. Window:NameBadge(friend.name))
 			row:Show()
 		else
 			row.friend = nil

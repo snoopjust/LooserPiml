@@ -24,6 +24,25 @@ Leaderboard.AWARDS = {
 	{ id = "duelKing", metric = "rankedWins", better = "high", tieKey = "rankedWins", format = "number" },
 }
 
+-- Hall of Shame cards (same rules, from the bottom). latest = true: a tie
+-- goes to whoever got there LAST (the fresh shame), unknown times count as
+-- "earliest". Zero never "wins" a high shame either (no Kangaroo with 0
+-- jumps); for the low ones (Broke, Noob) every value counts, 0 gold too.
+-- looserPiml: last place of the all-time duel ladder (Leaderboard.LooserPiml),
+-- independent of the period like the snapshots.
+Leaderboard.SHAME = {
+	{ id = "broke", metric = "gold", better = "low", format = "money", snapshot = true, latest = true },
+	{ id = "noob", metric = "level", better = "low", format = "number", snapshot = true, latest = true },
+	{ id = "looserPiml", special = "looserPiml", format = "record", snapshot = true },
+	{ id = "slowpoke", metric = "avgLevelTime", better = "high", tieKey = "levelTime", format = "duration", latest = true },
+	{ id = "bossSnack", metric = "deathsInEncounter", better = "high", tieKey = "deathsInEncounter", format = "number", latest = true },
+	{ id = "kangaroo", metric = "jumps", better = "high", tieKey = "jumps", format = "number", latest = true },
+}
+
+-- LooserPiml needs at least this many confirmed ranked duels: nobody gets
+-- the title without a fight.
+Leaderboard.LOOSERPIML_MIN_DUELS = 3
+
 -- Ranking list metrics (selector order).
 Leaderboard.METRICS = {
 	{ id = "deaths", metric = "deaths", tieKey = "deaths", format = "number" },
@@ -49,6 +68,8 @@ function Leaderboard.Value(participant, metric)
 		return participant.gold
 	elseif metric == "rankedWins" then
 		return participant.rankedWins
+	elseif metric == "level" then
+		return participant.level
 	end
 	local agg = participant.agg
 	if not agg then
@@ -61,16 +82,18 @@ function Leaderboard.Value(participant, metric)
 end
 
 -- participant.at (values computed outside the aggregate, e.g. rankedWins)
--- first, then the aggregate's timestamps.
+-- first, then the aggregate's timestamps. nil if unknown.
 local function achievedAt(participant, tieKey)
 	local at = tieKey and participant.at and participant.at[tieKey]
-	at = at or (tieKey and participant.agg and participant.agg.at and participant.agg.at[tieKey])
-	return at or math.huge -- unknown: counts as "later"
+	return at or (tieKey and participant.agg and participant.agg.at and participant.agg.at[tieKey]) or nil
 end
 
 -- Sorts entries ({ participant, value }) best first: by value, then who got
--- there earlier, then by name so the order is always the same.
-local function sortEntries(entries, better, tieKey)
+-- there earlier (latest: later), then by name so the order is always the
+-- same. Unknown times count as "later" for fame, "earlier" for shame, so a
+-- known time decides.
+local function sortEntries(entries, better, tieKey, latest)
+	local unknown = latest and -math.huge or math.huge
 	table.sort(entries, function(a, b)
 		if a.value ~= b.value then
 			if better == "low" then
@@ -78,18 +101,43 @@ local function sortEntries(entries, better, tieKey)
 			end
 			return a.value > b.value
 		end
-		local atA, atB = achievedAt(a.participant, tieKey), achievedAt(b.participant, tieKey)
+		local atA = achievedAt(a.participant, tieKey) or unknown
+		local atB = achievedAt(b.participant, tieKey) or unknown
 		if atA ~= atB then
+			if latest then
+				return atA > atB
+			end
 			return atA < atB
 		end
 		return a.participant.name < b.participant.name
 	end)
 end
 
+local function findAward(id)
+	return find(Leaderboard.AWARDS, id) or find(Leaderboard.SHAME, id)
+end
+
+-- The LooserPiml: last place of the all-time duel ladder among players
+-- with at least LOOSERPIML_MIN_DUELS confirmed ranked duels.
+-- { name, class, isSelf, value = { wins, losses } } or nil.
+function Leaderboard.LooserPiml(participants, merged)
+	local rows = Stats.Ladder.Rows(participants or {}, merged)
+	for i = #rows, 1, -1 do
+		local row = rows[i]
+		if row.wins + row.losses >= Leaderboard.LOOSERPIML_MIN_DUELS then
+			return { name = row.name, class = row.class, isSelf = row.isSelf, value = { row.wins, row.losses } }
+		end
+	end
+	return nil
+end
+
 -- Winner of one award or nil ("No one yet"). Zero never wins a "high"
 -- award: nobody is Death King with 0 deaths.
 function Leaderboard.Award(participants, awardOrId)
-	local award = type(awardOrId) == "table" and awardOrId or find(Leaderboard.AWARDS, awardOrId)
+	local award = type(awardOrId) == "table" and awardOrId or findAward(awardOrId)
+	if award.special == "looserPiml" then
+		return Leaderboard.LooserPiml(participants)
+	end
 	local entries = {}
 	for _, participant in ipairs(participants or {}) do
 		local value = Leaderboard.Value(participant, award.metric)
@@ -100,7 +148,7 @@ function Leaderboard.Award(participants, awardOrId)
 	if #entries == 0 then
 		return nil
 	end
-	sortEntries(entries, award.better, award.tieKey)
+	sortEntries(entries, award.better, award.tieKey, award.latest)
 	local best = entries[1]
 	return { name = best.participant.name, class = best.participant.class, value = best.value, isSelf = best.participant.isSelf }
 end
@@ -108,6 +156,14 @@ end
 function Leaderboard.HallOfFame(participants)
 	local cards = {}
 	for _, award in ipairs(Leaderboard.AWARDS) do
+		cards[#cards + 1] = { award = award, winner = Leaderboard.Award(participants, award) }
+	end
+	return cards
+end
+
+function Leaderboard.HallOfShame(participants)
+	local cards = {}
+	for _, award in ipairs(Leaderboard.SHAME) do
 		cards[#cards + 1] = { award = award, winner = Leaderboard.Award(participants, award) }
 	end
 	return cards
@@ -148,6 +204,8 @@ end
 function Leaderboard.Format(value, format)
 	if value == nil then
 		return "-"
+	elseif format == "record" then
+		return string.format("%d – %d", value[1], value[2]) -- ranked wins – losses
 	elseif format == "money" then
 		return ns.Util.FormatMoney(value)
 	elseif format == "duration" then

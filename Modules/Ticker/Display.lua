@@ -46,6 +46,7 @@ Display.COLORS = {
 	wishloot = { 0.9, 0.72, 0.36 },
 	duel_ranked = { 1, 0.6, 0.2 },
 	duel_fun = { 0.85, 0.85, 0.85 },
+	looserpiml = { 0.85, 0.3, 0.3 },
 }
 
 -- PlaySound takes a SoundKit ID; 8959 = raid warning, 888 = level-up fanfare.
@@ -56,6 +57,7 @@ Display.SOUNDS = {
 	death_again = 8959,
 	drowned = 8959,
 	levelup = 888,
+	looserpiml = 8959,
 }
 
 Display.queue = {}   -- entries waiting for the banner
@@ -79,6 +81,7 @@ Display.ICONS = {
 	wishloot = icon(3),
 	duel_ranked = icon(7), -- cross; 7 and 5: TODO(verify in-game) like the others
 	duel_fun = icon(5),    -- moon
+	looserpiml = icon(8),  -- skull, like the addon's icon
 }
 
 -- Random variant picker; tests replace it to get deterministic output.

@@ -41,6 +41,7 @@ function Stats:OnInitialize()
 	self:RegisterUI() -- LeaderboardTab.lua
 	self:RegisterProfilesTab() -- Profiles.lua
 	self:RegisterPvPTab() -- PvPTab.lua
+	self.Titles:Register() -- Titles.lua: the LooserPiml badge
 	if self.RegisterTonightTab then
 		self:RegisterTonightTab() -- Tonight.lua
 	end
@@ -104,6 +105,7 @@ function Stats:OnEnable()
 		self:Tick() -- SavedVariables are written right after this
 	end)
 	self:EnableCollectors()
+	self.Titles:Enable()
 	-- "Share my gold" (Inventory settings): friends learn it with the next
 	-- stats message, with or without gold.
 	ns.Events:Register(self, "LP_SHARING_CHANGED", function(_, _, kind)
@@ -119,6 +121,8 @@ function Stats:OnDisable()
 		self.ticker = nil
 	end
 	self.Duels:End("disabled")
+	ns.Events:UnregisterAll(self.Titles)
+	self.Titles.holder = nil
 end
 
 ----------------------------------------------------------------------

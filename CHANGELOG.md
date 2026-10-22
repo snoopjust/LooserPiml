@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added
+
+- **Hall of Shame** on the Leaderboard (switch **Fame | Shame**): **Broke**
+  (least gold right now), **Noob** (lowest level), **LooserPiml** (last on
+  the duel ladder, at least 3 ranked duels), **Slowpoke** (longest time per
+  level), **Boss Snack** (most deaths during boss fights) and **Kangaroo**
+  (most jumps).
+- The **LooserPiml** title: a red "LooserPiml" badge after the holder's
+  name (PvP tab, Leaderboard, Friends tab), a line in the minimap tooltip,
+  and a banner "Nerdalot is the new LooserPiml!" when a duel hands the
+  title to someone else (follows "Ranked duel results"). Try it with
+  `/lp sim looserpiml Kim` in test mode.
+
 ### Changed
 
 - **For now: group up to connect.** On the Forever beta the WoW friends

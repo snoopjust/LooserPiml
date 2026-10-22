@@ -34,9 +34,9 @@ local MATRIX_TOP = -232
 local function displayName(entry)
 	local name = Window:ColorName(entry.name, entry.class)
 	if entry.isSelf then
-		return name .. " " .. L.YOU_SUFFIX
+		name = name .. " " .. L.YOU_SUFFIX
 	end
-	return name
+	return name .. Window:NameBadge(entry.name)
 end
 
 local function shortName(entry)

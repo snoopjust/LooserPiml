@@ -66,6 +66,7 @@ Covered:
 | Ranked duel handshake between friends who are not grouped: panel on both sides (below the game's dialog for the challenged player), both Ranked → ranked (shared duel id, records on both sides), one Fun → not ranked, no answer → not ranked, fled = loss, streak per opponent, decline closes both panels and drops the choice, choice expires after the duel ends, the challenger's panel opens from the friend's ask if the hook missed it, non-friend or offline opponent → no panel and no message, the choice goes only to the opponent (whisper), "Ask ranked?" off, `/lp sim duel`; **no duel action (StartDuel/AcceptDuel/CancelDuel/ForfeitDuel) is ever called by LooserPiml and Blizzard's dialog is never hidden or clicked** (also checked after every spec) | `duels_spec.lua` |
 | Ladder: merge of both sides (confirmed, disputed, one-sided), sort by wins then win rate, streaks, head to head matrix Ranked / All duels (incl. a friend without duel data), sync between three friends who are not grouped, disputed duel left out, only listed opponents sent, hostile payloads, STATS size with 60 ranked duels, sample duels | `ladder_spec.lua` |
 | Ranked duel banner to all connected friends (one per duel, the loser sends nothing), "fled" text, fun duels as chat line only (setting, default off), "Ranked duel results" off, sanitizing, `/lp sim duel` banner; PvP tab ladder/matrix/toggle/placeholder/empty hints, tab order; the three duel settings and defaults; Duel King per period (`leaderboard_spec.lua`) | `pvp_spec.lua` |
+| Hall of Shame: Broke (0 gold counts, non-sharers out), Noob, Slowpoke, Boss Snack, Kangaroo (zero never, ties to the later one), LooserPiml (last of the ladder, ≥ 3 duels); Fame | Shame switch with six cards; LooserPiml badge on the PvP ladder, in the Friends tab and tooltip; banner when a duel hands the title on, on both sides, once; nothing after /reload; follows "Ranked duel results"; `/lp sim looserpiml` | `shame_spec.lua` |
 | Forever megaserver names: keys "First-Surname" from UnitName, "First Surname" senders and typed names; two friends with surnames (same or different, own realms differ) connect from the group, ticker banner, ranked duel with "First Surname" and bare first names in the game texts | `megaserver_spec.lua` |
 | Window open/ESC/toggle/position, tabs (Leaderboard first, Friends last), leaderboard contents and selectors, minimap button clicks, tooltip lines, minimap hide/show, Addon Compartment callbacks, footer version status | `window_spec.lua` |
 
@@ -226,6 +227,12 @@ Done 2026-10-20 with v0.2.0-beta.3 (dev junction): all checks passed except the 
 - [ ] Settings › Ticker messages: "Ranked duel results" (on), "Fun duel results" (off), "Ask "ranked?" in duels" (on, label not cut off).
 - [ ] A duel with a stranger (anyone not on your list): no panel at all; the duel is recorded as a normal duel (`/lp debug on`: "Stats: duel recorded").
 
+### 2.10 Hall of Shame (solo)
+
+- [ ] `/lp test on`, Settings › Testing › "Fill with sample friends", Leaderboard › **Shame**: six cards Broke, Noob, LooserPiml (Kim, "1 – 2 ranked"), Slowpoke, Boss Snack, Kangaroo, nothing overlaps; **Fame** brings back the five cards. 📸
+- [ ] PvP tab: "LooserPiml" in red after Kim; the minimap tooltip says "LooserPiml: Kim". The copper coin icon shows on the Broke card.
+- [ ] `/lp sim looserpiml Kim`: banner "[test] Kim is the new LooserPiml!" with the skull and the raid-warning sound.
+
 ## 3. Two players: you and one friend (about 60 minutes)
 
 Order: install, add each other, **not grouped first** (that's the normal
@@ -315,6 +322,7 @@ Grouped (that's the setup for launch: "group up to connect"). Both
 - [ ] `/lp selftest` on **both** sides: `[OK] Real transport: echo … payload intact` (TODO #71). If not: 📸 the lines and `/lp log 30` of both, and stop here: stats, inventory and the ladder need this.
 - [ ] One ranked duel (both pick Ranked): banner on both sides; after about 30 s the duel is on the **ladder on both sides** (PvP tab) and Duel King on the Leaderboard. 📸
 - [ ] Inventory tab: you see each other's bags within about 30 s.
+- [ ] Bonus: three ranked duels with the same winner → banner "<loser> is the new LooserPiml!" on both sides (about 30 s after the third), badge in the Friends tab.
 - [ ] No chat line "arrived damaged" or "arrived incomplete" during the evening. If one appears: `/lp log 30` on both sides, 📸.
 - [ ] Bonus: leave the group. Does "connected" stay? Add each other on the WoW friends list and check again (TODO #48). If it works, the "group up to connect" hint can go.
 

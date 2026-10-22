@@ -62,6 +62,8 @@ function Ticker:FilterKey(data)
 		return "duelRanked"
 	elseif data.k == "duel_fun" then
 		return "duelFun"
+	elseif data.k == "looserpiml" then
+		return "duelRanked" -- the title follows from ranked duels
 	end
 	return nil
 end
@@ -221,6 +223,18 @@ function Ticker:OnEnable()
 				o = info.o, oc = info.oc, w = info.rw, l = info.rl, fl = info.fled or nil,
 			}, info.test)
 		end
+	end)
+	-- The LooserPiml title changed hands (Stats/Titles.lua). Every client
+	-- works that out from its own duel data, so this is shown locally and
+	-- never sent.
+	ns.Events:Register(self, "LP_LOOSERPIML_CHANGED", function(_, _, info)
+		local data = { k = "looserpiml", c = info.class }
+		local mode = self:GetFriendsDisplay()
+		if mode == "off" or not self:ShouldShow(data, false) then
+			return
+		end
+		self:AddToTimeline(info.name, data, info.test)
+		self.Display:ShowEvent(info.name, data, { test = info.test, chatOnly = mode == "chat" })
 	end)
 	ns.TestMode:RegisterSim(self, { "death", "drown", "levelup", "enter", "leave", "wishloot" }, self.Simulate)
 	-- "/lp stats chat" (Window owns "/lp stats" and asks for the text ranking)

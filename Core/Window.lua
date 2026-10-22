@@ -136,6 +136,30 @@ function Window:AddTooltipProvider(fn)
 	self.tooltipProviders[#self.tooltipProviders + 1] = fn
 end
 
+-- Badges after a player's name (e.g. the LooserPiml title, Stats module):
+-- providers return a short colored text or nil. Core panels (Friends) use
+-- them without knowing the modules.
+Window.badgeProviders = {}
+
+function Window:AddBadgeProvider(fn)
+	self.badgeProviders[#self.badgeProviders + 1] = fn
+end
+
+-- " · Badge" for a full name, or "".
+function Window:NameBadge(fullName)
+	local parts = {}
+	for _, provider in ipairs(self.badgeProviders) do
+		local ok, badge = pcall(provider, fullName)
+		if ok and type(badge) == "string" and badge ~= "" then
+			parts[#parts + 1] = badge
+		end
+	end
+	if #parts == 0 then
+		return ""
+	end
+	return "  " .. table.concat(parts, " ")
+end
+
 ----------------------------------------------------------------------
 -- Main frame
 ----------------------------------------------------------------------
@@ -444,4 +468,5 @@ function Window:OnEnable()
 	ns.Events:Register(self, "LP_ITEM_LOADED", "ScheduleRefresh") -- an item name arrived from the cache
 	ns.Events:Register(self, "LP_WISHLIST_CHANGED", "ScheduleRefresh")
 	ns.Events:Register(self, "LP_TIMELINE_CHANGED", "ScheduleRefresh")
+	ns.Events:Register(self, "LP_BADGES_CHANGED", "ScheduleRefresh") -- a name badge moved (LooserPiml title)
 end
