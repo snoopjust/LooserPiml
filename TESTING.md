@@ -243,7 +243,7 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 📸 and send them to me together with anything that looks wrong.
 
 ### 3.1 Install the beta (both, 5 min)
-- [ ] Your friend installs **v0.2.0** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
+- [ ] Your friend installs **v0.2.0** as described in the README ("For friends: install"): WowUp (Default Addon Channel **Stable**) › Get Addons › Install from URL, or Check for Updates if a beta is installed. Fallback: the zip from the latest release.
 - [ ] You either use the same beta or stay on the dev junction (`dev`). With `dev`, version warnings don't appear (dev builds are never compared); that's correct.
 - [ ] In-game, character select › AddOns: LooserPiml is listed and enabled (tick "Load out of date AddOns" if needed). No Lua error on login.
 - [ ] `/lp version` on the friend's side shows `v0.2.0`. 📸 WowUp's addon list with the version, and the `/lp version` line.
