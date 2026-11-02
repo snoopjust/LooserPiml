@@ -165,7 +165,7 @@ Resolved 2026-10-12: chests are a separate counter (not gathered); communication
 
 ## Next steps
 
-1. **Launch day** (TESTING.md section 4): check the interface number and client folder, then tag **v0.2.0** as a normal release (decided 2026-10-21); friends switch WowUp back to Stable.
+1. **Launch day** (TESTING.md section 4): **v0.2.0 was tagged early (2026-11-02)** so friends can install it before the start (WowUp channel Stable). On launch: check the interface number (if it isn't 16001, release v0.2.1 with the new number) and the client folder.
 2. **First live evening** (TESTING.md section 5): grouped, `/lp selftest` both ways (TODO #71), a ranked duel → ladder on both sides, inventory. Then decide whether "group up to connect" can go (TODO #48) or a fallback for friends who aren't grouped is needed.
 3. Remaining checks from the beta plan (on the live servers): sections 2.4/2.5 (drowning, dungeons, restrictions) and section 3 with a friend; WowUp install on a friend's PC (TODO #22).
 4. Stage C next: battleground stats in the PvP tab (placeholder is there; the data is already collected).

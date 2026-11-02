@@ -7,8 +7,9 @@ into a dungeon. You also get a leaderboard to settle who the Death King is.
 
 > Working title. Free, open source, no ads, no donation requests.
 
-**Status:** v0.2.0 beta (Ticker, stats, leaderboard, Tonight, profiles,
-Friends' inventory with wishlists, friends list). A profession directory
+**Status:** v0.2.0 (Ticker, stats, leaderboard with Hall of Fame and Hall of
+Shame, ranked duels and the PvP tab, Tonight, profiles, Friends' inventory
+with wishlists, friends list). A profession directory
 and bets are planned. See
 [STATUS.md](STATUS.md).
 
@@ -60,14 +61,15 @@ normal release instead.
 2. **Get Addons** → **Install from URL** → paste
    `https://github.com/snoopjust/LooserPiml` → **Install**. If LooserPiml
    is already installed, use **Check for Updates** instead.
-3. The version column shows `v0.2.0-beta.6` (or newer).
+3. The version column shows the newest pre-release (or a newer normal
+   release).
 4. To get only normal releases again later, set the channel back to
    **Stable**. The next normal release replaces the beta.
 
 **Manual (fallback):** open
 [Releases](https://github.com/snoopjust/LooserPiml/releases), pick the
 newest release marked **Pre-release**, download its
-`LooserPiml-v0.2.0-beta.6-forever.zip` (the name follows the version) and
+`LooserPiml-<version>-forever.zip` and
 install it like the manual install above.
 
 ## Usage

@@ -243,10 +243,10 @@ case), then grouped in a dungeon (boss queue). Both `/lp debug on`.
 📸 and send them to me together with anything that looks wrong.
 
 ### 3.1 Install the beta (both, 5 min)
-- [ ] Your friend installs **v0.2.0-beta.6** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
+- [ ] Your friend installs **v0.2.0** as described in the README ("Beta versions"): WowUp › Options › WoW: Forever › Default Addon Channel = **Beta**, then Get Addons › Install from URL. Fallback: the zip from the release marked "Pre-release".
 - [ ] You either use the same beta or stay on the dev junction (`dev`). With `dev`, version warnings don't appear (dev builds are never compared); that's correct.
 - [ ] In-game, character select › AddOns: LooserPiml is listed and enabled (tick "Load out of date AddOns" if needed). No Lua error on login.
-- [ ] `/lp version` on the friend's side shows `v0.2.0-beta.6`. 📸 WowUp's addon list with the version, and the `/lp version` line.
+- [ ] `/lp version` on the friend's side shows `v0.2.0`. 📸 WowUp's addon list with the version, and the `/lp version` line.
 
 ### 3.2 Add each other (both, 5 min)
 - [ ] **WoW friends**: Social (O) › Add Friend, in both directions. Each sees the other as online.
@@ -310,7 +310,7 @@ first live evening is the real test. Before tagging v0.2.0:
 - [ ] Start the live client once. `/dump select(4, GetBuildInfo())`: if it isn't **16001**, put the new number into `## Interface:` in `LooserPiml.toc` (TODO #1).
 - [ ] Note the live client folder (TODO #2). Run `tools\link-addon.ps1` for it so the dev junction points at the repo.
 - [ ] Log in with the dev junction: no Lua error, `/lp` prints the help, the minimap button and window open, `/lp test on` + `/lp sim duel Max ranked` shows the panel.
-- [ ] Tag **v0.2.0** (normal release, not a pre-release; decided 2026-10-21). Check the release on GitHub: zip with `## Version: v0.2.0`, `release.json`.
+- [x] **v0.2.0** tagged early on 2026-11-02 (normal release), so friends can install it before the start. If the interface number above isn't 16001: set it in the `.toc`, add a v0.2.1 entry to CHANGELOG.md and tag **v0.2.1**.
 - [ ] Friends: WowUp › Options › WoW: Forever › Default Addon Channel back to **Stable**, then Check for Updates (or the zip by hand). README "For friends: install".
 
 ## 5. First live evening with a friend (10 min)

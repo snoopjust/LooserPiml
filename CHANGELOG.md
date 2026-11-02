@@ -1,6 +1,26 @@
 # Changelog
 
-## Unreleased
+## v0.2.0 (2026-11-02)
+
+The release for the WoW: Forever launch (4/5 November). Everything from
+the v0.2.0 betas, in short:
+
+- **LooserPiml friends**: LooserPiml talks only to players on your list who
+  added you too. For now: **group up to connect** (see below).
+- **Ticker**: deaths (and drownings), level-ups, dungeons and raids,
+  wishlist loot and duels of your friends as a banner and a chat line,
+  held during boss fights and shown afterwards.
+- **Leaderboard** with **Hall of Fame** (Death King, Fish Food, Gold
+  Hoarder, Speedrunner, Duel King) and the new **Hall of Shame**, plus a
+  ranking for tonight, this week or all time.
+- **Ranked duels** with the "ranked duel?" panel, the **PvP** tab (duel
+  ladder, head to head) and the **LooserPiml** title.
+- **Friends' inventory** with wishlists, **Profiles**, **Tonight** with the
+  evening recap.
+- Built for the Forever megaserver: friends are recognized by first name
+  and surname, larger messages travel in small parts.
+
+What's new since the last beta (v0.2.0-beta.6):
 
 ### Added
 
