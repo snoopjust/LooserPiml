@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.2.1 (2026-11-07)
+
+After the first live weekend: a game crash had lost freshly added friends.
 
 ### Added
 
