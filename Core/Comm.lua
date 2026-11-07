@@ -550,6 +550,9 @@ function Comm:Receive(text, sender, distribution, isTest)
 	if not isTest and not fromSelf then
 		if not ns.Friends:IsListed(fullSender) then
 			ns.Log:Debug("Dropped a message from %s (not on your LooserPiml friends list)", fullSender)
+			-- Still unread and unanswered; only the sender's name feeds a
+			-- local "add them back?" hint (lost list after a crash).
+			ns.Friends:NoteUnlisted(fullSender)
 			return
 		end
 		ns.Friends:NoteHeard(fullSender)

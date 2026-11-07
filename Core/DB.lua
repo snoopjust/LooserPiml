@@ -35,6 +35,7 @@ DB.defaults = {
 	-- shows the switches.
 	share = { gold = true, inventory = true },
 	timeline = {},              -- own and friends' events of the last days (Core/Timeline.lua)
+	saveReminder = true,         -- setting: remind me to save (/reload), Core/SaveReminder.lua
 }
 
 -- DB.migrations[n] upgrades a database from schema n-1 to n. Add a new entry

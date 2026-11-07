@@ -149,6 +149,16 @@ L.OPT_SECTION_FRIENDS = "LooserPiml friends"
 L.OPT_FRIENDS_MANAGE = "Friends list"
 L.OPT_FRIENDS_MANAGE_BUTTON = "Manage"
 L.OPT_FRIENDS_MANAGE_TIP = "LooserPiml only talks to players on this list who added you too."
+L.FRIENDS_WANTS_CONNECT = "%s has you on their LooserPiml friends list, but isn't on yours. If you know them, add them in the Friends tab (minimap button > Friends) to connect."
+
+-- Save reminder (Core/SaveReminder.lua) --------------------------------
+L.OPT_SAVE_REMINDER = "Remind me to save (/reload)"
+L.OPT_SAVE_REMINDER_TIP = "WoW saves addon data only when you log out or type /reload. After a crash everything since then is lost, your LooserPiml friends too. LooserPiml asks at a quiet moment after you add a friend and about once an hour."
+L.SAVE_PROMPT = "LooserPiml: save your friends list and stats now?\n\nThe game saves them only when you log out or reload. After a crash, everything since then is lost."
+L.SAVE_PROMPT_FRIENDS = "LooserPiml: you added a friend. Save now?\n\nThe game saves your friends list only when you log out or reload. After a crash, the new friend is lost."
+L.SAVE_NOW = "Reload now"
+L.SAVE_LATER = "Later"
+L.SAVE_CHAT_HINT = "Tip: /reload saves your LooserPiml friends and stats right away (a game crash loses everything since your last /reload or logout)."
 
 -- Main window / minimap ----------------------------------------------
 L.WINDOW_TITLE = "LooserPiml · Friends"

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Save reminder.** WoW saves addon data only when you log out or type
+  `/reload`; after a crash everything since then is gone, your LooserPiml
+  friends too (happened on launch weekend). LooserPiml now asks at a quiet
+  moment (not in combat, a dungeon or a boss fight) right after you add a
+  friend and about once an hour, with a **Reload now** button. It never
+  reloads on its own. Settings › LooserPiml friends › "Remind me to save
+  (/reload)".
+- **"Has you on their list"** hint: if someone who has you on their
+  LooserPiml friends list writes to you but isn't on yours (for example
+  after a crash lost your list), a chat line says so once per evening.
+  LooserPiml still doesn't answer them until you add them.
+
 ## v0.2.0 (2026-11-02)
 
 The release for the WoW: Forever launch (4/5 November). Everything from

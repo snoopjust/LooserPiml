@@ -174,6 +174,9 @@ function Friends:Add(input)
 	db[full] = { added = time(), class = ns.Roster:GetClass(full) }
 	ns.Log:Debug("Friends: added %s", full)
 	ns.Events:Fire("LP_FRIENDS_CHANGED", full)
+	-- Not saved until the next logout or /reload: a crash before that
+	-- loses the new friend, so offer to save soon.
+	ns.SaveReminder:OnImportantChange("friends")
 	-- Say hello right away if they are online; they answer once they
 	-- added us too.
 	self:UpdateOnline()
@@ -381,6 +384,29 @@ end
 
 function Friends:NoteHeard(full)
 	self.heard[full] = GetTime()
+end
+
+-- A LooserPiml message from someone who isn't on our list: they have us on
+-- theirs (LooserPiml only whispers listed friends). Typical after a crash
+-- lost our list. One local chat line per name and session (at most
+-- MAX_UNLISTED_HINTS names), never an answer and never an automatic add:
+-- the list stays the player's own choice.
+Friends.MAX_UNLISTED_HINTS = 5
+Friends.unlistedHints = {}
+
+function Friends:NoteUnlisted(full)
+	if self.unlistedHints[full] or ns.Roster:IsPlayer(full) then
+		return
+	end
+	local count = 0
+	for _ in pairs(self.unlistedHints) do
+		count = count + 1
+	end
+	if count >= self.MAX_UNLISTED_HINTS then
+		return
+	end
+	self.unlistedHints[full] = true
+	ns.Log:Print(L.FRIENDS_WANTS_CONNECT, ns.Roster:ColorName(full))
 end
 
 local function heardRecently(self, full)

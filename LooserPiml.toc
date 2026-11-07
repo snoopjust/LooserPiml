@@ -38,6 +38,7 @@ Core\Slash.lua
 Core\Options.lua
 Core\Window.lua
 Core\FriendsPanel.lua
+Core\SaveReminder.lua
 
 Modules\Ticker\Ticker.lua
 Modules\Ticker\Stats.lua

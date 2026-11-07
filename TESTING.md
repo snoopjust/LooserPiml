@@ -66,6 +66,7 @@ Covered:
 | Ranked duel handshake between friends who are not grouped: panel on both sides (below the game's dialog for the challenged player), both Ranked → ranked (shared duel id, records on both sides), one Fun → not ranked, no answer → not ranked, fled = loss, streak per opponent, decline closes both panels and drops the choice, choice expires after the duel ends, the challenger's panel opens from the friend's ask if the hook missed it, non-friend or offline opponent → no panel and no message, the choice goes only to the opponent (whisper), "Ask ranked?" off, `/lp sim duel`; **no duel action (StartDuel/AcceptDuel/CancelDuel/ForfeitDuel) is ever called by LooserPiml and Blizzard's dialog is never hidden or clicked** (also checked after every spec) | `duels_spec.lua` |
 | Ladder: merge of both sides (confirmed, disputed, one-sided), sort by wins then win rate, streaks, head to head matrix Ranked / All duels (incl. a friend without duel data), sync between three friends who are not grouped, disputed duel left out, only listed opponents sent, hostile payloads, STATS size with 60 ranked duels, sample duels | `ladder_spec.lua` |
 | Ranked duel banner to all connected friends (one per duel, the loser sends nothing), "fled" text, fun duels as chat line only (setting, default off), "Ranked duel results" off, sanitizing, `/lp sim duel` banner; PvP tab ladder/matrix/toggle/placeholder/empty hints, tab order; the three duel settings and defaults; Duel King per period (`leaderboard_spec.lua`) | `pvp_spec.lua` |
+| Save reminder: dialog right after adding a friend at the next quiet moment, not in combat / instance / boss / dead, once an hour, "Later" = 20 min, counting restarts after /reload, off with the setting and in test mode, only the button reloads (and no spec may reload on its own). "Has you on their list" hint: once per name and session, at most five, never an answer | `save_spec.lua` |
 | Hall of Shame: Broke (0 gold counts, non-sharers out), Noob, Slowpoke, Boss Snack, Kangaroo (zero never, ties to the later one), LooserPiml (last of the ladder, ≥ 3 duels); Fame | Shame switch with six cards; LooserPiml badge on the PvP ladder, in the Friends tab and tooltip; banner when a duel hands the title on, on both sides, once; nothing after /reload; follows "Ranked duel results"; `/lp sim looserpiml` | `shame_spec.lua` |
 | Forever megaserver names: keys "First-Surname" from UnitName, "First Surname" senders and typed names; two friends with surnames (same or different, own realms differ) connect from the group, ticker banner, ranked duel with "First Surname" and bare first names in the game texts | `megaserver_spec.lua` |
 | Window open/ESC/toggle/position, tabs (Leaderboard first, Friends last), leaderboard contents and selectors, minimap button clicks, tooltip lines, minimap hide/show, Addon Compartment callbacks, footer version status | `window_spec.lua` |
@@ -233,6 +234,12 @@ Done 2026-10-20 with v0.2.0-beta.3 (dev junction): all checks passed except the 
 - [ ] PvP tab: "LooserPiml" in red after Kim; the minimap tooltip says "LooserPiml: Kim". The copper coin icon shows on the Broke card.
 - [ ] `/lp sim looserpiml Kim`: banner "[test] Kim is the new LooserPiml!" with the skull and the raid-warning sound.
 
+### 2.11 Save reminder (solo)
+
+- [ ] Add a friend by name (Friends tab): within about 30 s a dialog "LooserPiml: you added a friend. Save now?" with **Reload now** / **Later**, plus a chat tip. **Reload now** reloads the UI; the friend is still on the list afterwards. 📸
+- [ ] Add one in combat or inside a dungeon: the dialog waits until you're out.
+- [ ] Settings › LooserPiml friends › "Remind me to save (/reload)" off: no dialog any more.
+
 ## 3. Two players: you and one friend (about 60 minutes)
 
 Order: install, add each other, **not grouped first** (that's the normal
@@ -333,7 +340,7 @@ Grouped (that's the setup for launch: "group up to connect"). Both
 | # | What | How to check | Result |
 |---|---|---|---|
 | 1 | Interface number is 16001 and stays that at launch (Nov 4, 2026) | `/dump select(4, GetBuildInfo())` | **16001 confirmed on the beta (2026-10-11)**. Launch value still open |
-| 2 | Client folder name `_classic_beta_` (beta). Launch name? | Look in the WoW folder after launch | |
+| 2 | Client folder name `_classic_beta_` (beta). Launch name? | Look in the WoW folder after launch | **Live: `_forever_`** (seen 2026-11-07) |
 | 3 | LibStub, CallbackHandler, AceComm r14 + ChatThrottleLib v32, AceSerializer, LibDeflate load on Forever | `/lp selftest` step 1, no Lua errors | **OK (2026-10-11)**: CallbackHandler r8, AceComm r14, AceSerializer r5, LibDeflate r3 loaded, roundtrip OK |
 | 4 | Addon whisper to yourself (incl. multi-chunk) is delivered | `/lp selftest` | **No (2026-10-11)**: server answers "No player named 'X' is currently playing" per chunk. The self-test now pings a connected friend, who echoes it (see #5) |
 | 5 | WHISPER addon messages arrive between friends who are not grouped (incl. multi-chunk) | Section 3.3 (self-test, ticker, stats) | **2026-10-20 (grouped):** single messages OK both ways; AceComm multi-part messages arrived damaged ("bad compression") → replaced by our own parts (#71). Not grouped: not tested (WoW friends list failed across realms, #48) |
@@ -402,4 +409,5 @@ Grouped (that's the setup for launch: "group up to connect"). Both
 | 69 | Raid target icons 7 (cross) and 5 (moon) render in the duel banner / chat line | Section 2.9 | **OK (2026-10-20)**: cross and moon render |
 | 71 | Large messages as our own numbered parts (STATS with duels, inventory, self-test) arrive complete between two players; no "Incomplete message" or "bad compression" lines | `/lp selftest` both ways, section 3.5 (ladder after a ranked duel), 3.3b (inventory) | AceComm's multi-part messages arrived damaged (2026-10-20, "bad compression"), hence the parts |
 | 70 | Megaserver names: UnitName = first name + surname in the realm slot, addon senders "First Surname", whispers to "First-Surname" delivered | Section 3.2 | **Seen 2026-10-20** (that's why the friends never connected before the fix). Still open: the name shape in duel messages, `DUEL_REQUESTED` and `C_FriendList`; a visible `/w Headdleonty-Kneadmetal` arrives too (2026-10-20); whether two friends connect without a group (WoW friends list across "Classic Beta PvE" / "PvE 2") |
+| 72 | Our StaticPopup "LOOSERPIML_SAVE" shows with both buttons; its "Reload now" (C_UI.Reload) reloads without a blocked action | Section 2.11 | |
 | 54 | The GitHub release of a `-beta` tag is marked "Pre-release", and WowUp with Default Addon Channel = Beta installs it from the URL (with Stable it picks v0.1.0) | Section 3.1 | Release marking checked on GitHub (see STATUS.md); WowUp still open |

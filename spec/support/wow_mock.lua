@@ -1088,6 +1088,23 @@ function Mock:BuildEnv()
 	G.StaticPopup_FindVisible = function(which)
 		return mock.visiblePopups[which]
 	end
+	-- Reloading the UI is the player's choice too: a call outside a
+	-- simulated user action fails the spec (mock.reloads counts all).
+	mock.reloads = 0
+	local function reload(name)
+		return function()
+			mock.reloads = mock.reloads + 1
+			if not mock.inUserAction then
+				mock.gameActions[#mock.gameActions + 1] = name
+			end
+		end
+	end
+	G.ReloadUI = reload("ReloadUI")
+	G.C_UI = { Reload = reload("C_UI.Reload") }
+	mock.inCombat = false
+	G.InCombatLockdown = function()
+		return mock.inCombat
+	end
 	G.StaticPopup_Hide = function(which)
 		if not mock.inUserAction then
 			mock.gameActions[#mock.gameActions + 1] = "StaticPopup_Hide(" .. tostring(which) .. ")"
